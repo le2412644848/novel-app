@@ -933,6 +933,115 @@ body::before {
 .skeleton-line:last-child { width: 60%; }
 /* ===== 轻提示自动消失 ===== */
 @keyframes fadeOutUp { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-20px); } }
+/* ===== 阅读器书签 ===== */
+.bookmark-indicator {
+  position: absolute;
+  right: 8px;
+  top: 0;
+  color: var(--accent3);
+  font-size: 18px;
+  z-index: 5;
+  cursor: pointer;
+}
+/* ===== 自动滚屏 ===== */
+.auto-scroll-indicator {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.7);
+  color: #fff;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  z-index: 220;
+  display: none;
+  pointer-events: none;
+}
+.auto-scroll-indicator.show { display: block; }
+/* ===== 封面颜色选择器 ===== */
+.cover-color-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.cover-color-picker .color-dot {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all .2s;
+}
+.cover-color-picker .color-dot.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(124,148,255,.2);
+  transform: scale(1.15);
+}
+/* ===== 书架卡片操作按钮 ===== */
+.shelf-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.shelf-card-actions .mini-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+}
+.shelf-card-actions .mini-btn:active { border-color: var(--accent); color: var(--accent); }
+/* ===== 最近阅读标记 ===== */
+.recent-badge {
+  display: inline-block;
+  background: rgba(77,232,160,.15);
+  color: var(--accent2);
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+/* ===== 书架更多菜单 ===== */
+.shelf-card { position: relative; }
+.shelf-more-menu {
+  position: absolute;
+  right: 8px;
+  top: 44px;
+  background: var(--glass);
+  backdrop-filter: var(--backdrop);
+  -webkit-backdrop-filter: var(--backdrop);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 4px;
+  z-index: 60;
+  display: none;
+  box-shadow: var(--shadow);
+  min-width: 130px;
+}
+.shelf-more-menu.show { display: block; }
+.shelf-more-menu button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.shelf-more-menu button:active { background: var(--bg2); }
+.shelf-more-menu button.danger { color: var(--danger); }
 </style>
 </head>
 <body>
@@ -1166,6 +1275,17 @@ body::before {
       <button class="tag-btn" data-style="言情">言情</button>
     </div>
     <input type="text" id="novelCustomStyle" placeholder="或自定义风格（可选）">
+    <label>🎨 封面主题色</label>
+    <div class="cover-color-picker" id="coverColorPicker">
+      <div class="color-dot selected" data-color="0" style="background:linear-gradient(135deg,#667eea,#764ba2);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="1" style="background:linear-gradient(135deg,#f093fb,#f5576c);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="2" style="background:linear-gradient(135deg,#4facfe,#00f2fe);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="3" style="background:linear-gradient(135deg,#43e97b,#38f9d7);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="4" style="background:linear-gradient(135deg,#fa709a,#fee140);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="5" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="6" style="background:linear-gradient(135deg,#f5576c,#ff6f3f);" onclick="selectCoverColor(this)"></div>
+      <div class="color-dot" data-color="7" style="background:linear-gradient(135deg,#e0c3fc,#8ec5fc);" onclick="selectCoverColor(this)"></div>
+    </div>
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="closeModal('newNovelModal')">取消</button>
       <button class="btn btn-primary" onclick="createNovel()" style="margin-bottom:8px;">创建</button>
@@ -1430,8 +1550,22 @@ body::before {
     <span>亮度</span>
     <input type="range" id="readerBrightness" min="20" max="100" step="5" value="100" oninput="applyReaderBrightness(this.value)">
   </div>
+  <div class="menu-row" style="margin-bottom:10px;">
+    <button onclick="toggleAutoScroll()" id="autoScrollBtn" title="自动滚屏">▶▶</button>
+    <button onclick="addBookmark()" title="添加书签">🔖</button>
+    <button onclick="showBookmarkList()" title="书签列表">📑</button>
+    <span style="font-size:12px;color:var(--text2);" id="bookmarkCount"></span>
+  </div>
+  <div class="slider-row" id="autoScrollSpeedRow" style="display:none;margin-bottom:10px;">
+    <span>滚屏速度</span>
+    <input type="range" id="autoScrollSpeed" min="1" max="10" step="1" value="5" oninput="updateAutoScrollSpeed(this.value)">
+    <span id="autoScrollSpeedVal">5</span>
+  </div>
   <div class="toc-list" id="readerToc" style="display:none;"></div>
+  <div class="toc-list" id="bookmarkList" style="display:none;"></div>
 </div>
+<!-- 滚动指示器 -->
+<div class="auto-scroll-indicator" id="autoScrollIndicator">▶▶ 自动滚屏中 · 点击屏幕停止</div>
 <!-- 亮度遮罩 -->
 <div class="brightness-overlay" id="brightnessOverlay"></div>
 
@@ -1891,16 +2025,27 @@ function renderMyWorks() {
   const searchTerm = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
   let filtered = novels.map((n, i) => ({n, i}));
   if (searchTerm) filtered = filtered.filter(({n}) => n.title.toLowerCase().includes(searchTerm));
-  el.innerHTML = filtered.map(({n, i}) => {
+  // Sort: recently read first
+  const sorted = [...filtered].sort((a, b) => ((b.n.lastReadAt || 0) - (a.n.lastReadAt || 0)));
+  el.innerHTML = sorted.map(({n, i}) => {
     const total = n.chapters.reduce((s, c) => s + countChinese(c.content), 0);
     const hasBible = n.bible && (n.bible.synopsis || n.bible.characters);
     const doneCh = n.chapters.filter(c => (c.content || '').length > 100).length;
     const novelTokens = n.chapters.reduce((s, c) => s + (c.tokens || 0), 0);
-    return `<div class="card" onclick="openNovel(${i})">
-      <h3>${esc(n.title)} ${hasBible ? '📖' : ''}</h3>
-      <div class="meta">${n.style} · ${n.chapters.length} 章${doneCh > 0 ? ' · 已完成 ' + doneCh + '/' + n.chapters.length + ' 章' : ''} · ${total.toLocaleString()} 字${novelTokens ? ' · ⚡' + novelTokens.toLocaleString() : ''}${novelTokens ? ' · ¥' + n.chapters.reduce((s, c) => s + (c.cost || 0), 0).toFixed(4) : ''}}</div>
-      <span class="tag">${n.style}</span>
-      <div class="progress-bar"><div class="fill" style="width:${Math.min(100, Math.round(total/chapterWordTarget*100))}%"></div></div>
+    const coverColor = n.coverColor || COVER_GRADIENTS[i % COVER_GRADIENTS.length];
+    const recentlyRead = n.lastReadAt && (Date.now() - n.lastReadAt < 7 * 86400000);
+    return `<div class="card shelf-card" onclick="openNovel(${i})">
+      <div class="shelf-cover" style="background:${coverColor};">${esc(n.title).charAt(0)}</div>
+      <div class="shelf-info">
+        <div class="shelf-title">${esc(n.title)} ${hasBible ? '📖' : ''}${recentlyRead ? '<span class="recent-badge">最近</span>' : ''}</div>
+        <div class="shelf-meta">${n.style} · ${n.chapters.length} 章${doneCh > 0 ? ' · 已完成 ' + doneCh + '/' + n.chapters.length + ' 章' : ''} · ${total.toLocaleString()} 字</div>
+        ${n.readingProgress > 0 ? `<div class="shelf-progress">已读 ${n.readingProgress}%</div>` : ''}
+        <div class="progress-bar"><div class="fill" style="width:${Math.min(100, Math.round(total/chapterWordTarget*100))}%"></div></div>
+      </div>
+      <div class="shelf-card-actions">
+        <button class="mini-btn" onclick="event.stopPropagation();openNovelReader(${i})" title="阅读">👁</button>
+        <button class="mini-btn" onclick="event.stopPropagation();toggleShelfMore(event, ${i}, 'novel')" title="更多">···</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1917,16 +2062,22 @@ function renderBookshelf() {
   const searchTerm = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
   let filtered = importedBooks.map((b, i) => ({b, i}));
   if (searchTerm) filtered = filtered.filter(({b}) => b.title.toLowerCase().includes(searchTerm));
-  el.innerHTML = filtered.map(({b, i}) => {
+  // Sort: recently read first
+  const sorted = [...filtered].sort((a, b) => ((b.b.lastReadAt || 0) - (a.b.lastReadAt || 0)));
+  el.innerHTML = sorted.map(({b, i}) => {
     const coverColor = b.coverColor || COVER_GRADIENTS[i % COVER_GRADIENTS.length];
     const progress = b.currentPosition ? Math.round((b.currentPosition.chapterIndex / Math.max(1, b.chapters.length)) * 100) : 0;
+    const recentlyRead = b.lastReadAt && (Date.now() - b.lastReadAt < 7 * 86400000);
     return `<div class="card shelf-card" onclick="openImportedBook(${i})">
       <div class="shelf-cover" style="background:${coverColor};">${esc(b.title).charAt(0)}</div>
       <div class="shelf-info">
-        <div class="shelf-title">${esc(b.title)}</div>
+        <div class="shelf-title">${esc(b.title)}${recentlyRead ? '<span class="recent-badge">最近</span>' : ''}</div>
         <div class="shelf-meta">${b.author || '未知作者'} · ${b.chapters.length} 章 · ${(b.totalWords||0).toLocaleString()} 字</div>
         ${progress > 0 ? `<div class="shelf-progress">已读 ${progress}%</div>` : ''}
         <div class="progress-bar"><div class="fill" style="width:${progress}%"></div></div>
+      </div>
+      <div class="shelf-card-actions">
+        <button class="mini-btn" onclick="event.stopPropagation();toggleShelfMore(event, ${i}, 'imported')" title="更多">···</button>
       </div>
     </div>`;
   }).join('');
@@ -1950,7 +2101,10 @@ function createNovel() {
   const nid = Date.now().toString(36);
   const outlineText = window._pendingOutline || '';
   const bibleOutline = outlineText ? '【章节大纲】\n' + outlineText : '';
-  novels.push({ id: nid, title, style, createdAt: new Date().toISOString(), chapters: [], bible: { synopsis: '', characters: '', outline: bibleOutline, other: '' } });
+  // 封面颜色
+  const colorIdx = parseInt(document.querySelector('#coverColorPicker .color-dot.selected')?.dataset?.color || '0');
+  const coverColor = COVER_GRADIENTS[colorIdx % COVER_GRADIENTS.length];
+  novels.push({ id: nid, title, style, coverColor, createdAt: new Date().toISOString(), chapters: [], bible: { synopsis: '', characters: '', outline: bibleOutline, other: '' }, readingProgress: 0 });
   window._pendingOutline = null;
   saveData();
   closeModal('newNovelModal');
@@ -4380,6 +4534,238 @@ function useAiOutline() {
   showToast('大纲已就绪，输入书名后点「创建」即可');
   showModal('newNovelModal');
 }
+
+// ===== 封面颜色选择 =====
+function selectCoverColor(dot) {
+  document.querySelectorAll('#coverColorPicker .color-dot').forEach(d => d.classList.remove('selected'));
+  dot.classList.add('selected');
+}
+
+// ===== 书架卡片更多菜单 =====
+function toggleShelfMore(event, idx, type) {
+  event.stopPropagation();
+  // Close any existing menus
+  document.querySelectorAll('.shelf-more-menu').forEach(m => m.classList.remove('show'));
+
+  let menu = document.getElementById('shelfMoreMenu_' + type + '_' + idx);
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.className = 'shelf-more-menu';
+    menu.id = 'shelfMoreMenu_' + type + '_' + idx;
+
+    const btns = [];
+    if (type === 'novel') {
+      btns.push({ label: '👁 阅读', action: 'openNovelReader(' + idx + ');removeAllShelfMenus();' });
+      btns.push({ label: '📚 加入书架', action: 'addToBookshelf(' + idx + ');removeAllShelfMenus();' });
+      btns.push({ label: '🗑 删除', action: 'if(confirm(\"确定删除这部小说？\")){novels.splice(' + idx + ',1);saveData();renderHome();showToast(\"已删除\");removeAllShelfMenus();}', cls: 'danger' });
+    } else {
+      btns.push({ label: '🗑 移出书架', action: 'removeImportedBook(' + idx + ');removeAllShelfMenus();', cls: 'danger' });
+    }
+
+    menu.innerHTML = btns.map(b => '<button class="' + (b.cls || '') + '" onclick="' + b.action + '">' + b.label + '</button>').join('');
+    event.target.closest('.card').appendChild(menu);
+  }
+
+  menu.classList.toggle('show');
+}
+
+function removeAllShelfMenus() {
+  document.querySelectorAll('.shelf-more-menu').forEach(m => m.remove());
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.shelf-more-menu') && !e.target.closest('.mini-btn')) {
+    removeAllShelfMenus();
+  }
+});
+
+// ===== 加入书架：将已有小说复制到导入书架 =====
+function addToBookshelf(novelIdx) {
+  const n = novels[novelIdx];
+  if (!n) return;
+  // 检查是否已加入
+  const exists = importedBooks.find(b => b._sourceNovelId === n.id);
+  if (exists) { showToast('⚠️ 该小说已在书架中'); return; }
+
+  importedBooks.push({
+    id: Date.now().toString(36),
+    title: n.title,
+    author: '自己',
+    source: 'novel',
+    coverColor: n.coverColor || COVER_GRADIENTS[novelIdx % COVER_GRADIENTS.length],
+    chapters: n.chapters.map(c => ({ title: c.title || '', content: c.content || '' })),
+    currentPosition: { chapterIndex: 0, scrollPercent: 0 },
+    importedAt: new Date().toISOString(),
+    totalWords: n.chapters.reduce((s, c) => s + countChinese(c.content), 0),
+    readingProgress: 0,
+    _sourceNovelId: n.id
+  });
+
+  saveData();
+  showToast('✅ 已加入书架');
+}
+
+// ===== 从书架移除 =====
+function removeImportedBook(idx) {
+  if (!confirm('确定从书架移除此书？')) return;
+  importedBooks.splice(idx, 1);
+  removeAllShelfMenus();
+  saveData();
+  renderHome();
+  showToast('已移出书架');
+}
+
+// ===== 更新 openReader 记录阅读时间 =====
+const _origOpenReader = openReader;
+openReader = function() {
+  const book = getReaderBook();
+  if (book) {
+    book.lastReadAt = Date.now();
+    saveData();
+  }
+  _origOpenReader();
+};
+
+// ===== 更新 closeReader 停止自动滚屏 =====
+const _origCloseReader = closeReader;
+closeReader = function() {
+  stopAutoScroll();
+  _origCloseReader();
+};
+
+// ===== 自动滚屏 =====
+let _autoScrollTimer = null;
+let _autoScrollSpeed = 5; // 1-10
+
+function toggleAutoScroll() {
+  if (_autoScrollTimer) {
+    stopAutoScroll();
+  } else {
+    startAutoScroll();
+  }
+}
+
+function startAutoScroll() {
+  const indicator = document.getElementById('autoScrollIndicator');
+  const speedRow = document.getElementById('autoScrollSpeedRow');
+  indicator.classList.add('show');
+  if (speedRow) speedRow.style.display = '';
+
+  const content = document.getElementById('readerContent');
+  const baseSpeed = 0.5; // pixels per tick
+
+  _autoScrollTimer = setInterval(() => {
+    content.scrollTop += baseSpeed * _autoScrollSpeed;
+    // Stop if at bottom
+    if (content.scrollTop >= content.scrollHeight - content.clientHeight - 10) {
+      stopAutoScroll();
+      showToast('已滚动到底部');
+    }
+  }, 50);
+}
+
+function stopAutoScroll() {
+  if (_autoScrollTimer) {
+    clearInterval(_autoScrollTimer);
+    _autoScrollTimer = null;
+  }
+  document.getElementById('autoScrollIndicator').classList.remove('show');
+}
+
+function updateAutoScrollSpeed(val) {
+  _autoScrollSpeed = parseInt(val);
+  document.getElementById('autoScrollSpeedVal').textContent = val;
+}
+
+// 点击阅读内容区域停止自动滚屏
+document.getElementById('readerContent').addEventListener('click', function(e) {
+  if (_autoScrollTimer && !e.target.closest('.reader-menu')) {
+    // Toggle reader menu on click when auto-scrolling
+    stopAutoScroll();
+  }
+});
+
+// ===== 书签系统 =====
+function addBookmark() {
+  if (!readerBook) return;
+  const book = getReaderBook();
+  if (!book) return;
+
+  if (!book.bookmarks) book.bookmarks = [];
+
+  const content = document.getElementById('readerContent');
+  const scrollPct = Math.round(content.scrollTop / Math.max(1, content.scrollHeight - content.clientHeight) * 100);
+
+  // Check if already bookmarked at this chapter
+  const exists = book.bookmarks.find(b => b.chapterIndex === readerBook.chapterIndex);
+  if (exists) {
+    exists.scrollPercent = scrollPct;
+    exists.time = Date.now();
+    showToast('🔖 书签已更新');
+  } else {
+    book.bookmarks.push({
+      chapterIndex: readerBook.chapterIndex,
+      chapterTitle: book.chapters[readerBook.chapterIndex]?.title || '第' + (readerBook.chapterIndex + 1) + '章',
+      scrollPercent: scrollPct,
+      time: Date.now()
+    });
+    showToast('🔖 已添加书签');
+  }
+  saveData();
+  updateBookmarkCount();
+}
+
+function updateBookmarkCount() {
+  const book = getReaderBook();
+  const count = book?.bookmarks?.length || 0;
+  const el = document.getElementById('bookmarkCount');
+  if (el) el.textContent = count > 0 ? count + '个书签' : '';
+}
+
+function showBookmarkList() {
+  const book = getReaderBook();
+  if (!book) return;
+  const list = document.getElementById('bookmarkList');
+  const toc = document.getElementById('readerToc');
+
+  toc.style.display = 'none';
+  if (list.style.display !== 'none') { list.style.display = 'none'; return; }
+
+  const bookmarks = book.bookmarks || [];
+  if (bookmarks.length === 0) {
+    list.innerHTML = '<div class="toc-item" style="color:var(--text3);">暂无书签，点 🔖 添加</div>';
+  } else {
+    list.innerHTML = bookmarks.sort((a, b) => b.time - a.time).map((bm, i) => {
+      return '<div class="toc-item" onclick="goToBookmark(' + i + ');document.getElementById(\'readerMenu\').classList.remove(\'active\');">' +
+        '🔖 ' + esc(bm.chapterTitle) + ' · ' + bm.scrollPercent + '%' +
+        '<span style="float:right;font-size:11px;color:var(--text3);">' + new Date(bm.time).toLocaleDateString() + '</span></div>';
+    }).join('');
+  }
+  list.style.display = '';
+}
+
+function goToBookmark(bmIdx) {
+  const book = getReaderBook();
+  if (!book || !book.bookmarks) return;
+  const bm = book.bookmarks[bmIdx];
+  if (!bm) return;
+
+  readerBook.chapterIndex = bm.chapterIndex;
+  readerGoToChapter(bm.chapterIndex);
+
+  // Restore scroll position after content loads
+  setTimeout(() => {
+    const content = document.getElementById('readerContent');
+    content.scrollTop = (bm.scrollPercent / 100) * (content.scrollHeight - content.clientHeight);
+  }, 300);
+}
+
+// ===== 打开阅读器时更新书签计数 =====
+const _origLoadReaderChapter = loadReaderChapter;
+loadReaderChapter = function() {
+  _origLoadReaderChapter();
+  updateBookmarkCount();
+};
 
 </script>
 </body>
