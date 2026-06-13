@@ -2085,7 +2085,7 @@ body::before {
       </div>
     </div>
 
-    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614c · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
+    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614d · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
 
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
@@ -3238,9 +3238,12 @@ function renderBookshelf() {
       '<div class="shelf-cover" style="background:' + coverColor + ';">' + esc(b.title).charAt(0) + '</div>' +
       '<div class="shelf-info">' +
         '<div class="shelf-title">' + esc(b.title) + (recentlyRead ? '<span class="recent-badge">最近</span>' : '') + '</div>' +
-        '<div class="shelf-meta">' + (b.author || '未知作者') + ' · ' + b.chapters.length + ' 章 · ' + (b.totalWords || 0).toLocaleString() + ' 字</div>' +
+        '<div class="shelf-meta">' + (b.author || '未知作者') + ' · ' + b.chapters.length + ' 章 · ' + (b.totalWords || 0).toLocaleString() + ' 字' +
+          (b._downloading ? ' <span style="color:var(--accent);font-size:11px;">⬇' + (b._downloaded||0) + '/' + (b._downloadTotal||b.chapters.length) + '</span>' : '') +
+        '</div>' +
+        (b._downloading ? '<div class="shelf-progress" style="color:var(--accent);">正在下载... ' + (b._downloaded||0) + '/' + (b._downloadTotal||b.chapters.length) + ' 章</div>' : '') +
         (progress > 0 ? '<div class="shelf-progress">已读 ' + progress + '%' + (lastChapter ? ' — ' + esc(lastChapter) : '') + '</div>' : '') +
-        '<div class="progress-bar"><div class="fill" style="width:' + progress + '%"></div></div>' +
+        '<div class="progress-bar"><div class="fill" style="width:' + (b._downloading ? Math.round((b._downloaded||0)/Math.max(1,b._downloadTotal||1)*100) : progress) + '%"></div></div>' +
         tagsHtml +
       '</div>' +
       '<div class="shelf-card-actions">' +
@@ -8068,53 +8071,71 @@ async function addOnlineBookToShelf() {
   const newBook = {
     id: bookId, title: title, author: '在线书源', source: '在线',
     coverColor: COVER_GRADIENTS[Math.floor(Math.random() * 12)],
-    chapters: _onlineChapters.map(c => ({ title: c.title, content: '加载中...' })),
+    chapters: _onlineChapters.map(c => ({ title: c.title, content: '等待下载...' })),
     currentPosition: { chapterIndex: 0, scrollPercent: 0 },
     importedAt: new Date().toISOString(),
     totalWords: 0, readingProgress: 0, bookmarks: [],
-    _downloading: true
+    _downloading: true, _downloaded: 0, _downloadTotal: _onlineChapters.length
   };
   importedBooks.push(newBook);
-  saveData();
+  saveDataNow();  // 立即保存（不用 debounce，避免被后续 saveData 覆盖）
   showToast('开始下载 ' + _onlineChapters.length + ' 章...');
-  let downloaded = 0;
-  let failedCount = 0;
+
+  let succeeded = 0;
+  let failed = 0;
   const total = _onlineChapters.length;
+
   for (let i = 0; i < total; i++) {
     try {
       const html = await fetchWithCORS(_onlineChapters[i].url, 0);
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const content = extractChapterContent(doc, src.contentSel);
-      newBook.chapters[i].content = content || (_onlineChapters[i].title + '\n\n（内容提取失败）');
-      downloaded++;
-      if (downloaded % 5 === 0 || downloaded === total) {
-        newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
-        saveData();
-        showToast('已下载 ' + downloaded + '/' + total + ' 章');
+      const c = extractChapterContent(doc, src.contentSel);
+      if (c && c.length >= 50) {
+        newBook.chapters[i].content = c;
+        succeeded++;
+      } else {
+        newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（内容提取失败）';
+        failed++;
       }
     } catch(e) {
-      newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（下载失败）';
-      failedCount++;
-      downloaded++;
-      // 前三章全部失败 → 代理不可用，取消下载
-      if (failedCount >= 3 && downloaded <= 3) {
-        importedBooks.pop();
+      newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（下载失败：' + (e.message || '网络错误') + '）';
+      failed++;
+      // 前三章全部失败 → 代理不可用
+      if (failed >= 3 && succeeded === 0) {
+        newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（代理不可用，请在浏览器中阅读）';
         newBook._downloading = false;
-        saveData();
+        newBook._downloaded = succeeded;
+        newBook.totalWords = newBook.chapters.reduce((s, ch) => s + countChinese(ch.content), 0);
+        saveDataNow();
         renderBookshelf();
-        showToast('⚠️ 代理不可用，正在打开原网页...');
-        window.open(_selectedOnlineBook?.url || _onlineBookData?.[0]?.url || _onlineChapters[0]?.url, '_blank');
+        showToast('⚠️ 下载失败，请用「粘贴书源URL」或在浏览器打开书源网站阅读');
         return;
       }
     }
-    await new Promise(r => setTimeout(r, 400));
+
+    newBook._downloaded = succeeded + failed;
+    // 每章都更新字数并保存（确保进度不丢失）
+    if ((succeeded + failed) % 3 === 0 || (succeeded + failed) === total) {
+      newBook.totalWords = newBook.chapters.reduce((s, ch) => s + countChinese(ch.content), 0);
+      saveDataNow();
+      renderBookshelf();
+      showToast('下载中 ' + (succeeded + failed) + '/' + total + '（成功 ' + succeeded + '）');
+    }
+    // 每章间短暂延迟，避免请求过快被封
+    await new Promise(r => setTimeout(r, 300 + Math.random() * 200));
   }
+
   newBook._downloading = false;
+  newBook._downloaded = succeeded + failed;
   newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
-  saveData();
+  saveDataNow();
   renderBookshelf();
-  showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章，' + failedCount + '章失败）');
+  showToast('✅ ' + title + ' 已加入书架（' + succeeded + '/' + total + ' 章成功）');
+  // 如果全部失败，打开浏览器
+  if (succeeded === 0) {
+    window.open(_selectedOnlineBook?.url || _onlineChapters[0]?.url, '_blank');
+  }
 }
 
 // Fallback: 在新标签页打开书源搜索
