@@ -8460,7 +8460,8 @@ async function fetchWithCORS(url, _unused, options) {
   // GET: 代理兜底
   const proxies = getProxyList();
   window._lastCORSLog = (window._lastCORSLog || []);
-  window._lastCORSLog.push('代理数:' + proxies.length);
+  window._lastCORSLog.push('代理数:' + proxies.length + ' 自定义:' + (_customProxy || '(空)'));
+  for (let i = 0; i < proxies.length; i++) {
   for (let i = 0; i < proxies.length; i++) {
     try {
       const c = new AbortController();
