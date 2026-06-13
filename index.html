@@ -8447,9 +8447,7 @@ async function fetchWithCORS(url, _unused, options) {
     try {
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), 15000);
-      // corsfix 需要原始 URL（不编码），其他代理需要编码
-      const isCorsfix = proxies[i].includes('corsfix');
-      const proxyUrl = proxies[i] + (isCorsfix ? url : encodeURIComponent(url));
+      const proxyUrl = proxies[i] + encodeURIComponent(url);
       const resp = await fetch(proxyUrl, { signal: c.signal });
       clearTimeout(t);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
