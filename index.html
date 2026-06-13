@@ -2765,10 +2765,29 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
+  // 错误信息保留更长时间
+  const isError = msg.startsWith('❌') || msg.startsWith('⚠️');
   toastTimer = setTimeout(() => {
     el.classList.add('hiding');
     setTimeout(() => { el.classList.remove('show', 'hiding'); }, 200);
-  }, 2200);
+  }, isError ? 8000 : 2200);
+}
+function showError(msg) {
+  console.error(msg);
+  // 持久显示在errorDisplay（可复制）
+  const ed = document.getElementById('errorDisplay');
+  if (ed) {
+    ed.style.display = 'block';
+    ed.style.whiteSpace = 'pre-wrap';
+    ed.style.maxHeight = '60vh';
+    ed.style.overflowY = 'auto';
+    ed.style.fontSize = '11px';
+    ed.style.textAlign = 'left';
+    ed.style.lineHeight = '1.4';
+    ed.textContent = '❌ ' + msg + '\n\n[长按此处可复制错误信息]';
+  }
+  // 也弹toast
+  showToast('❌ ' + msg.split('\n')[0]);
 }
 function esc(s) {
   const d = document.createElement('div');
@@ -4916,6 +4935,7 @@ async function parseEpub(buffer, filename) {
       entrySource = '字节扫描';
     }
 
+    console.log('EPUB阶段1: 找到条目', entries.length, '来源:', entrySource);
     // --- 解压所有条目 ---
     let deflateCount = 0, failCount = 0;
     const entryNames = [];
@@ -4936,6 +4956,7 @@ async function parseEpub(buffer, filename) {
         }
       }
     }
+    console.log('EPUB阶段2: 解压完成 成功:' + deflateCount + ' 失败:' + failCount + ' 解码文件数:' + Object.keys(files).length);
 
     // --- 找 container.xml 或回退：直接提取所有HTML ---
     const containerFile = Object.keys(files).find(k =>
@@ -4945,6 +4966,7 @@ async function parseEpub(buffer, filename) {
     let title = filename.replace(/\.epub$/i, '');
     let author = '';
 
+    console.log('EPUB阶段3: container文件' + (containerFile ? '找到:' + containerFile : '未找到'));
     if (containerFile) {
       // 标准EPUB结构
       const containerXml = files[containerFile];
@@ -5027,8 +5049,24 @@ async function parseEpub(buffer, filename) {
       }
     }
 
+    console.log('EPUB阶段4: 提取到章节数=' + chapters.length);
     if (chapters.length === 0) {
-      showToast('⚠️ EPUB解析失败\n来源:' + entrySource + ' 条目:' + entries.length + '个 解压:' + deflateCount + '个 失败:' + failCount + '个\n条目名:' + entryNames.join(', ').slice(0, 400) + '\n可用文件:' + Object.keys(files).join(', ').slice(0, 300));
+      const diagMsg = 'EPUB解析失败\n来源:' + entrySource + ' 条目:' + entries.length + '个 解压:' + deflateCount + '个 失败:' + failCount + '个\n条目名:' + entryNames.join(', ').slice(0, 400) + '\n可用文件:' + Object.keys(files).join(', ').slice(0, 300);
+      console.error('=== EPUB诊断 ===');
+      console.error('来源:', entrySource);
+      console.error('条目数:', entries.length, '解压成功:', deflateCount, '解压失败:', failCount);
+      console.error('条目名:', entryNames.join(', '));
+      console.error('解码文件:', Object.keys(files).join(', '));
+      console.error('解码文件数:', Object.keys(files).length);
+      // 打印每个解码文件的前200字符用于诊断
+      for (const [k, v] of Object.entries(files)) {
+        console.error('文件[' + k + '] 长度=' + (v||'').length + ' 前200字符:', (v||'').substring(0, 200));
+      }
+      console.error('chapters数量:', chapters.length);
+      console.error('containerFile:', containerFile);
+      console.error('title:', title);
+      console.error('=== EPUB诊断结束 ===');
+      showError(diagMsg);
       return;
     }
 
@@ -5051,7 +5089,8 @@ async function parseEpub(buffer, filename) {
     renderHome();
     showToast('✅ 导入成功：' + title + ' · ' + chapters.length + '章 · ' + totalWords.toLocaleString() + '字');
   } catch(e) {
-    showToast('❌ EPUB解析出错：' + e.message + '，请尝试TXT格式');
+    const msg = 'EPUB解析异常: ' + e.message + ' (请尝试TXT格式)';
+    showError(msg);
     console.error('EPUB parse error:', e);
   }
 }
