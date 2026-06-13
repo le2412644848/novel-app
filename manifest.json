@@ -4,7 +4,7 @@
   "description": "AI写作助手",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "portrait",
   "scope": ".",
   "lang": "zh-CN",
   "background_color": "#080b10",
