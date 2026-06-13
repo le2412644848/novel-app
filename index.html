@@ -3936,10 +3936,6 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWi
 
 // ===== 初始化 =====
 loadData();
-setTimeout(function() {
-  updateGoalRing();
-  enablePullToRefresh('novelList');
-}, 500);
 
 // Click overlay to close
 document.querySelectorAll('.modal-overlay').forEach(el => {
@@ -6445,6 +6441,12 @@ async function addOnlineBookToShelf() {
   renderBookshelf();
   showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章）');
 }
+
+// ===== 延迟初始化（确保所有函数已定义） =====
+setTimeout(function() {
+  if (typeof updateGoalRing === 'function') updateGoalRing();
+  if (typeof enablePullToRefresh === 'function') enablePullToRefresh('novelList');
+}, 500);
 
 </script>
 </body>
