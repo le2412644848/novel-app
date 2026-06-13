@@ -1534,31 +1534,131 @@ body::before {
 }
 
 /* ===== 在线书源搜索结果 ===== */
+.os-search-box {
+  display: flex;
+  gap: 0;
+  background: var(--bg2);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.os-search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(240,168,64,0.15);
+}
+.os-search-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  padding: 12px 16px;
+  outline: none;
+}
+.os-search-box input::placeholder { color: var(--text3); }
+.os-search-box .os-search-btn {
+  flex-shrink: 0;
+  padding: 12px 20px;
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter .2s;
+}
+.os-search-box .os-search-btn:hover { filter: brightness(1.1); }
+.os-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  font-size: 12px;
+  color: var(--text3);
+  min-height: 20px;
+}
+.os-status-bar .os-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.os-status-dot.searching { background: var(--accent); animation: pulse-dot 0.8s infinite; }
+.os-status-dot.success { background: #4caf84; }
+.os-status-dot.error { background: #e06060; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+.os-results-container {
+  max-height: 50vh;
+  overflow-y: auto;
+  border-radius: 8px;
+}
 .online-search-card {
   display: flex;
-  gap: 12px;
-  padding: 12px;
-  border-bottom: 1px solid var(--glass-border);
+  gap: 14px;
+  padding: 14px;
+  margin: 4px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background .15s;
+  transition: all .2s;
+  border: 1px solid transparent;
 }
-.online-search-card:hover { background: var(--bg2); }
+.online-search-card:hover {
+  background: var(--bg2);
+  border-color: var(--glass-border);
+  transform: translateX(3px);
+}
 .online-search-card .os-cover {
-  width: 56px; height: 76px;
+  width: 52px; height: 70px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.3);
 }
-.online-search-card .os-info { flex: 1; min-width: 0; }
-.online-search-card .os-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.online-search-card .os-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.online-search-card .os-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; line-height: 1.3; }
 .online-search-card .os-author { font-size: 12px; color: var(--text2); }
-.online-search-card .os-desc { font-size: 11px; color: var(--text3); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.online-search-card .os-latest { font-size: 10px; color: var(--accent); margin-top: 2px; }
+.online-search-card .os-source-tag {
+  display: inline-block;
+  font-size: 10px;
+  background: rgba(240,168,64,0.12);
+  color: var(--accent);
+  padding: 2px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+.online-search-card .os-index {
+  font-size: 12px;
+  color: var(--text3);
+  min-width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+  align-self: center;
+  font-weight: 600;
+}
+.os-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text3);
+}
+.os-empty-state .os-empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.6; }
+.os-empty-state p { margin: 4px 0; font-size: 13px; }
+.os-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 12px;
+}
 
 /* ===== 书源卡片 ===== */
 .source-card {
@@ -1574,7 +1674,7 @@ body::before {
 .source-card-name { font-weight: 600; color: var(--text); font-size: 14px; }
 .source-card-url { font-size: 10px; color: var(--text3); max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-card-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
-.os-source-tag { font-size: 10px; color: var(--accent); font-weight: 400; }
+
 
 /* ===== 在线章节列表项 ===== */
 .online-chapter-item {
@@ -1985,7 +2085,7 @@ body::before {
       </div>
     </div>
 
-    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614a · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
+    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614b · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
 
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
@@ -2433,18 +2533,20 @@ body::before {
 
 <!-- ===== 在线书源弹窗 ===== -->
 <div class="modal-overlay" id="onlineSearchModal">
-  <div class="modal" style="max-width:520px;">
-    <h2>🔍 在线搜书</h2>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
-      <input type="text" id="onlineSearchInput" placeholder="输入书名，按 Enter 搜索..." onkeydown="if(event.key==='Enter')searchOnlineNovels()" style="flex:1;font-size:15px;padding:12px 16px;" autofocus>
-      <button class="btn btn-primary" onclick="searchOnlineNovels()" style="width:auto;flex-shrink:0;padding:12px 22px;">🔍 搜索</button>
+  <div class="modal" style="max-width:540px;">
+    <h2 style="margin-bottom:14px;">📚 在线搜书</h2>
+    <div class="os-search-box" style="margin-bottom:4px;">
+      <input type="text" id="onlineSearchInput" placeholder="输入书名，按 Enter 搜索..." onkeydown="if(event.key==='Enter')searchOnlineNovels()" autofocus>
+      <button class="os-search-btn" onclick="searchOnlineNovels()">搜索</button>
     </div>
-    <div id="onlineSearchHint" style="font-size:11px;color:var(--text3);margin-bottom:8px;">搜索将依次查询多个免费书源，请在下方结果中点击书名查看详情</div>
-    <div id="onlineSearchResults" style="max-height:55vh;overflow-y:auto;"></div>
-    <div style="margin-top:8px;font-size:11px;color:var(--text3);">
-      💡 找到书后打开目录页 → 复制URL → 「🔗 粘贴书源URL」导入书架
+    <div class="os-status-bar" id="onlineSearchHint">
+      <span>搜索多个免费书源，点击书名查看章节列表</span>
     </div>
-    <div class="btn-group" style="margin-top:8px;">
+    <div class="os-results-container" id="onlineSearchResults"></div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text3);text-align:center;">
+      💡 提示：也可在浏览器打开书源网站 → 复制目录页URL → 「🔗 粘贴书源URL」导入
+    </div>
+    <div class="btn-group" style="margin-top:6px;">
       <button class="btn btn-secondary" onclick="closeModal('onlineSearchModal')">关闭</button>
     </div>
   </div>
@@ -7658,7 +7760,7 @@ function openCharDialogue() {
 const BOOK_SOURCES = [
   { name: '爱丽丝书屋', baseUrl: 'https://www.alicesw.org', searchUrl: 'https://www.alicesw.org/search.html?q={query}&f=_all',
     itemSel: '.list-group-item', titleSel: 'h5 a', authorSel: 'p.text-muted a',
-    chapterSel: 'li a', contentSel: '.read-content',
+    chapterSel: 'li a', contentSel: '#chaptercontent',
     chapterListPattern: '/other/chapters/id/$1.html', chapterListRegex: '/novel/(\\d+)\\.html' },
   { name: '狼人小说', baseUrl: 'https://www.langrenxiaoshuo.com', searchUrl: 'https://www.langrenxiaoshuo.com/s.php?action=search',
     searchMethod: 'POST', searchBody: 'wd={query}&objectType=2',
@@ -7673,8 +7775,8 @@ let _currentOnlineSource = null;
 
 function showOnlineSearch() {
   document.getElementById('onlineSearchInput').value = '';
-  document.getElementById('onlineSearchResults').innerHTML = '<p style="text-align:center;color:var(--text3);padding:20px;">输入书名后按 Enter 或点击「搜索」</p>';
-  document.getElementById('onlineSearchHint').textContent = '搜索将依次查询 ' + BOOK_SOURCES.length + ' 个免费书源';
+  document.getElementById('onlineSearchResults').innerHTML = '<div class="os-empty-state"><div class="os-empty-icon">📖</div><p>输入书名开始搜索</p><p style="font-size:11px;color:var(--text3);">支持 ' + BOOK_SOURCES.filter(s=>!s.skip).length + ' 个免费书源</p></div>';
+  document.getElementById('onlineSearchHint').innerHTML = '<span class="os-status-dot searching"></span> 搜索将依次查询 ' + BOOK_SOURCES.filter(s=>!s.skip).length + ' 个免费书源';
   _onlineBookData = null;
   showModal('onlineSearchModal');
   setTimeout(() => document.getElementById('onlineSearchInput').focus(), 150);
@@ -7686,12 +7788,12 @@ async function searchOnlineNovels() {
   if (!query) { showToast('请输入书名'); return; }
   const resultsEl = document.getElementById('onlineSearchResults');
   const hintEl = document.getElementById('onlineSearchHint');
-  resultsEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><p style="margin-top:10px;color:var(--text2);">正在搜索 ' + BOOK_SOURCES.length + ' 个书源...</p></div>';
+  resultsEl.innerHTML = '<div class="os-loading"><div class="spinner"></div><p style="color:var(--text2);">正在搜索书源...</p></div>';
 
   const allResults = [];
   for (const src of BOOK_SOURCES) {
     try {
-      hintEl.textContent = '搜索中：' + src.name + '...';
+      hintEl.innerHTML = '<span class="os-status-dot searching"></span> 正在搜索：' + src.name + '...';
       let html;
       if (src.searchMethod === 'POST') {
         const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
@@ -7722,9 +7824,9 @@ async function searchOnlineNovels() {
           break;
         }
       });
-      hintEl.textContent = src.name + '：' + count + '条';
+      hintEl.innerHTML = '<span class="os-status-dot success"></span> ' + src.name + '：找到 ' + count + ' 条结果';
     } catch(e) {
-      hintEl.textContent = src.name + '：' + (e.message || '连接失败');
+      hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：' + (e.message || '连接失败');
     }
   }
 
@@ -7739,27 +7841,30 @@ async function searchOnlineNovels() {
 
   if (deduped.length === 0) {
     // 全部失败 → 提供在新标签页搜索的 fallback
-    resultsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">' +
-      '<p style="margin-bottom:12px;">代理搜索无结果</p>' +
-      '<p style="font-size:12px;color:var(--text3);margin-bottom:12px;">运行 server.py 可启用本地代理加速</p>' +
-      BOOK_SOURCES.map((src, i) =>
-        '<button class="btn btn-secondary btn-sm" onclick="openSourceSearch(' + i + ')" style="margin:3px;width:auto;">在 ' + src.name + ' 搜索</button>'
+    resultsEl.innerHTML = '<div class="os-empty-state">' +
+      '<div class="os-empty-icon">🔍</div>' +
+      '<p style="font-weight:600;color:var(--text);">未找到相关书籍</p>' +
+      '<p>代理搜索无结果，可尝试直接在书源网站搜索</p>' +
+      '<div style="margin-top:12px;">' +
+      BOOK_SOURCES.filter(s=>!s.skip).map((src, i) =>
+        '<button class="btn btn-secondary btn-sm" onclick="openSourceSearch(' + i + ')" style="margin:4px;">在 ' + src.name + ' 搜索</button>'
       ).join('') +
-    '</div>';
-    hintEl.textContent = '无结果 — 可点击下方按钮直接在网站搜索';
+      '</div></div>';
+    hintEl.innerHTML = '<span class="os-status-dot error"></span> 代理搜索无结果，可点击下方按钮在网站直接搜索';
     return;
   }
 
-  hintEl.textContent = '找到 ' + deduped.length + ' 个结果（来自 ' + BOOK_SOURCES.length + ' 个书源）';
+  hintEl.innerHTML = '<span class="os-status-dot success"></span> 找到 ' + deduped.length + ' 个结果（来自 ' + BOOK_SOURCES.filter(s=>!s.skip).length + ' 个书源）';
   _onlineBookData = deduped;
   _currentOnlineSource = null;
 
   resultsEl.innerHTML = deduped.slice(0, 40).map((r, i) =>
     '<div class="online-search-card" onclick="openOnlineBook(' + i + ')">' +
+      '<span class="os-index">' + (i + 1) + '</span>' +
       '<div class="os-cover" style="background:' + COVER_GRADIENTS[i % 12] + ';">' + esc(r.title).charAt(0) + '</div>' +
       '<div class="os-info">' +
-        '<div class="os-title">' + esc(r.title) + ' <span class="os-source-tag">[' + esc(r.source) + ']</span></div>' +
-        (r.author ? '<div class="os-author">' + esc(r.author) + '</div>' : '') +
+        '<div class="os-title">' + esc(r.title) + '<span class="os-source-tag">' + esc(r.source) + '</span></div>' +
+        (r.author ? '<div class="os-author">✎ ' + esc(r.author) + '</div>' : '') +
       '</div></div>'
   ).join('');
 }
@@ -7853,6 +7958,65 @@ async function openOnlineBook(idx) {
   }
 }
 
+// 智能提取章节正文（多选择器兜底 + 最大文本块算法）
+function extractChapterContent(doc, preferredSel) {
+  // 1. 首选选择器
+  if (preferredSel) {
+    const el = doc.querySelector(preferredSel);
+    if (el) {
+      const text = el.textContent.trim();
+      if (text.length >= 100) return text;
+    }
+  }
+  // 2. 全面兜底选择器（覆盖常见小说站模板）
+  const fallbackSels = [
+    '#chaptercontent', '#content', '#BookText', '#htmlContent', '#booktext',
+    '.show-txt', '.read-content', '.showtxt', '.novel-content', '.book-content',
+    '.chapter-content', '.content', '.txtnav', '.article', '.post-content',
+    'article', '.read_area', '#read_area', '.yd_text', '#novelcontent'
+  ];
+  for (const sel of fallbackSels) {
+    try {
+      const el = doc.querySelector(sel);
+      if (el) {
+        const text = el.textContent.trim();
+        if (text.length >= 100) return text;
+      }
+    } catch(e) { /* 无效选择器跳过 */ }
+  }
+  // 3. 通过章节标题容器提取
+  const headings = doc.querySelectorAll('h1, h2, h3, h4');
+  for (const h of headings) {
+    if (/第[一二三四五六七八九十百千0-9]+[章节回]/.test(h.textContent)) {
+      const parent = h.closest('div, section, article');
+      if (parent) {
+        const text = parent.textContent.trim();
+        if (text.length >= 200) return text;
+      }
+    }
+  }
+  // 4. 智能算法：找中文字最多的叶子容器（子div≤3，避免选到body等大容器）
+  const allDivs = doc.querySelectorAll('div');
+  let bestText = '';
+  let bestChinese = 0;
+  for (const div of allDivs) {
+    if (div.querySelectorAll('div').length > 3) continue;
+    const text = div.textContent.trim();
+    const ch = (text.match(/[一-鿿]/g) || []).length;
+    if (ch > bestChinese && ch > 100) {
+      bestChinese = ch;
+      bestText = text;
+    }
+  }
+  if (bestText) return bestText;
+  // 5. 最终兜底
+  if (doc.body) {
+    let text = doc.body.textContent.replace(/\n{3,}/g, '\n\n').replace(/[\t ]{2,}/g, ' ');
+    return text.substring(0, 15000);
+  }
+  return '';
+}
+
 // 在线阅读章节
 async function readOnlineChapter(idx) {
   if (idx >= _onlineChapters.length) return;
@@ -7863,15 +8027,11 @@ async function readOnlineChapter(idx) {
     const html = await fetchWithCORS(ch.url, 0);
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    let content = '';
-    const contentEl = doc.querySelector(src.contentSel);
-    if (contentEl) content = contentEl.textContent.trim();
-    if (!content || content.length < 50) {
-      const fallback = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article, .txtnav');
-      if (fallback) content = fallback.textContent.trim();
-    }
+    let content = extractChapterContent(doc, src.contentSel);
     if (!content || content.length < 30) {
-      content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : ch.title;
+      showToast('未能提取章节内容，正在打开原网页...');
+      window.open(ch.url, '_blank');
+      return;
     }
     content = content.replace(/\n{3,}/g, '\n\n').replace(/[\t ]{2,}/g, ' ');
 
@@ -7922,17 +8082,8 @@ async function addOnlineBookToShelf() {
       const html = await fetchWithCORS(_onlineChapters[i].url, 0);
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      let content = '';
-      const el = doc.querySelector(src.contentSel);
-      if (el) content = el.textContent.trim();
-      if (!content) {
-        const fe = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article');
-        if (fe) content = fe.textContent.trim();
-      }
-      if (!content || content.length < 30) {
-        content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : _onlineChapters[i].title;
-      }
-      newBook.chapters[i].content = content;
+      const content = extractChapterContent(doc, src.contentSel);
+      newBook.chapters[i].content = content || (_onlineChapters[i].title + '\n\n（内容提取失败）');
       downloaded++;
       if (downloaded % 5 === 0 || downloaded === total) {
         newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
@@ -8100,11 +8251,7 @@ async function importBookFromUrl() {
       const html = await fetchWithCORS(chapters[i].url, 0);
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const contentEl = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article');
-      let content = contentEl ? contentEl.textContent.trim() : '';
-      if (!content || content.length < 30) {
-        content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : chapters[i].title;
-      }
+      const content = extractChapterContent(doc, null) || (chapters[i].title + '\n\n（内容提取失败）');
       newBook.chapters[i].content = content;
       downloaded++;
       if (downloaded % 5 === 0 || downloaded === total) {
