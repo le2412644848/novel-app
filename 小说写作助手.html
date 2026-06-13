@@ -6716,18 +6716,35 @@ async function importBookFromUrl() {
 }
 
 // ===== CORS 代理（仅用于URL导入时获取章节） =====
-const CORS_PROXIES = [
-  './proxy?url=',           // 本地代理（需要 server.py）
-  'https://corsproxy.io/?',
-  'https://api.allorigins.win/raw?url='
-];
+let _localProxyOk = null; // null=未检测 true=可用 false=不可用
+
+async function checkLocalProxy() {
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 3000);
+    const r = await fetch('./proxy?url=' + encodeURIComponent('https://httpbin.org/get'), { signal: c.signal });
+    clearTimeout(t);
+    _localProxyOk = r.ok;
+  } catch(e) {
+    _localProxyOk = false;
+  }
+}
+
+function getProxyList() {
+  if (_localProxyOk === true) {
+    return ['./proxy?url=', 'https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+  }
+  // 本地代理不可用，直接用在线代理，不浪费时间去试
+  return ['https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+}
 
 async function fetchWithCORS(url, idx) {
-  if (idx >= CORS_PROXIES.length) throw new Error('所有代理不可用');
+  const proxies = getProxyList();
+  if (idx >= proxies.length) throw new Error('所有代理不可用');
   try {
-    const proxyUrl = CORS_PROXIES[idx] + encodeURIComponent(url);
+    const proxyUrl = proxies[idx] + encodeURIComponent(url);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
     const resp = await fetch(proxyUrl, { signal: controller.signal });
     clearTimeout(timeout);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -6735,7 +6752,6 @@ async function fetchWithCORS(url, idx) {
     if (!text || text.length < 100) throw new Error('响应太短');
     return text;
   } catch(e) {
-    if (idx === 0) console.log('本地代理不可用，尝试在线代理...');
     return fetchWithCORS(url, idx + 1);
   }
 }
@@ -6744,6 +6760,7 @@ async function fetchWithCORS(url, idx) {
 setTimeout(function() {
   if (typeof updateGoalRing === 'function') updateGoalRing();
   if (typeof enablePullToRefresh === 'function') enablePullToRefresh('novelList');
+  checkLocalProxy(); // 快速检测本地代理是否可用
 }, 500);
 
 </script>
