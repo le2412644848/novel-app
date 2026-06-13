@@ -2500,10 +2500,30 @@ function openDB() {
 let _dbPromise = null;
 function getDB() { if (!_dbPromise) _dbPromise = openDB().catch(e => { _dbPromise = null; throw e; }); return _dbPromise; }
 async function dbSave(key, val) {
-  try { const db = await getDB(); db.transaction('data','readwrite').objectStore('data').put(JSON.stringify(val), key); } catch(e) { fallbackToLS(); }
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('data', 'readwrite');
+      const store = tx.objectStore('data');
+      store.put(JSON.stringify(val), key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) { fallbackToLS(); }
 }
 async function dbLoad(key) {
   try { const db = await getDB(); return new Promise(r => { const t = db.transaction('data').objectStore('data').get(key); t.onsuccess = () => { try { r(JSON.parse(t.result)); } catch(e) { r(null); } }; t.onerror = () => r(null); }); } catch(e) { return null; }
+}
+async function dbDelete(key) {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('data', 'readwrite');
+      tx.objectStore('data').delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) {}
 }
 function fallbackToLS() { /* 忽略，静默降级 */ }
 
