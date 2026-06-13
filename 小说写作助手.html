@@ -1984,7 +1984,9 @@ body::before {
         </div>
       </div>
     </div>
-    
+
+    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614a · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
+
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
       <button class="btn btn-primary" onclick="saveSettings();testApi()" style="background:var(--accent2);">保存并测试</button>
@@ -7722,7 +7724,7 @@ async function searchOnlineNovels() {
       });
       hintEl.textContent = src.name + '：' + count + '条';
     } catch(e) {
-      hintEl.textContent = src.name + '：连接失败';
+      hintEl.textContent = src.name + '：' + (e.message || '连接失败');
     }
   }
 
@@ -8141,18 +8143,26 @@ async function checkLocalProxy() {
   }
 }
 
+function clearSiteCache() {
+  if (!confirm('将清除浏览器缓存和 Service Worker，然后重新加载（不影响书架数据），确定？')) return;
+  Promise.all([
+    caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))),
+    navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(regs => Promise.all(regs.map(r => r.unregister()))) : Promise.resolve()
+  ]).then(() => {
+    location.reload();
+  });
+}
+
 function getProxyList() {
   const proxies = [];
-  // 1. SW 内置代理（同源中转）
+  // SW 内置代理（如果可用）
   if (_localProxyOk) {
     proxies.push('./proxy?url=');
   }
-  // 2. Cloudflare Worker 代理（需 VPN 访问 workers.dev）
+  // Cloudflare Worker 代理（需 VPN 访问 workers.dev）
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
-  // 3. 公共 CORS 代理兜底
-  proxies.push('https://api.allorigins.win/raw?url=');
   return proxies;
 }
 
@@ -8178,10 +8188,11 @@ async function fetchWithCORS(url, _unused, options) {
         if (text && text.length >= 100) return text;
       } catch(e) { /* 继续尝试下一个代理 */ }
     }
-    throw new Error('所有代理均不可用');
+    throw new Error('POST 代理均不可用');
   }
 
   // GET: 直连优先（多数书源允许 CORS）
+  let directErr = '';
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 15000);
@@ -8191,7 +8202,10 @@ async function fetchWithCORS(url, _unused, options) {
       const text = await resp.text();
       if (text && text.length >= 100) return text;
     }
-  } catch(e) { /* 直连失败 → 尝试代理 */ }
+    directErr = 'HTTP ' + resp.status + ' 或响应过短';
+  } catch(e) {
+    directErr = e.message || '网络错误';
+  }
 
   // GET: 代理兜底
   const proxies = getProxyList();
@@ -8207,7 +8221,7 @@ async function fetchWithCORS(url, _unused, options) {
     } catch(e) { /* 继续尝试下一个代理 */ }
   }
 
-  throw new Error('直连和代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
+  throw new Error('请求失败：' + directErr + '（直连和所有代理均不可用）');
 }
 
 // ===== 延迟初始化（确保所有函数已定义） =====
