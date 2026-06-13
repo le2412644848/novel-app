@@ -7965,6 +7965,34 @@ async function openOnlineBook(idx) {
 }
 
 // 智能提取章节正文（多选择器兜底 + 最大文本块算法）
+// 检测 Cloudflare/反爬验证页面
+function isCloudflareChallenge(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  // Cloudflare 验证关键词
+  const cfKeywords = [
+    '访问验证', '验证码', '安全验证', '行为验证',
+    '请输入验证码', '点击图片刷新', '继续阅读',
+    'cf-browser-verify', 'challenge-form', 'challenge-platform',
+    '_cf_chl_opt', 'cf_challenge', 'cf-captcha',
+    'just a moment', 'checking your browser', 'ddos protection',
+    'please wait while we verify', 'enable javascript',
+    '云防护', '安全检测', '人机验证', '访问受限'
+  ];
+  for (const kw of cfKeywords) {
+    if (lower.includes(kw.toLowerCase())) return true;
+  }
+  // 短响应且包含验证相关词（< 800 字符但包含多个验证特征）
+  if (text.length < 800) {
+    let hits = 0;
+    for (const kw of ['验证', 'challenge', 'cf-', '_cf_', 'captcha', '验证码']) {
+      if (lower.includes(kw.toLowerCase())) hits++;
+    }
+    if (hits >= 2) return true;
+  }
+  return false;
+}
+
 function extractChapterContent(doc, preferredSel) {
   // 1. 首选选择器
   if (preferredSel) {
@@ -8031,6 +8059,11 @@ async function readOnlineChapter(idx) {
   const src = _currentOnlineSource || BOOK_SOURCES[0];
   try {
     const html = await fetchWithCORS(ch.url, 0);
+    // 检测 Cloudflare 验证页面
+    if (isCloudflareChallenge(html)) {
+      previewBox.innerHTML = '<div style=\'padding: 40px; text-align: center; color: var(--muted);\'><p style=\'font-size: 48px; margin-bottom: 16px;\'>🛡️</p><p style=\'font-size: 16px;\'>书源需要人机验证</p><p style=\'margin-top: 16px;\'><a href=\'' + ch.url + '\' target=\'_blank\' style=\'color: var(--accent);\'>点击在浏览器中验证 →</a></p><p style=\'font-size: 12px; color: var(--muted); margin-top: 12px;\'>完成验证后重新点击预览即可</p></div>';
+      return;
+    }
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     let content = extractChapterContent(doc, src.contentSel);
@@ -8083,11 +8116,27 @@ async function addOnlineBookToShelf() {
 
   let succeeded = 0;
   let failed = 0;
+  let _cfPrompted = false;
   const total = _onlineChapters.length;
 
   for (let i = 0; i < total; i++) {
     try {
       const html = await fetchWithCORS(_onlineChapters[i].url, 0);
+      // 检测 Cloudflare 验证页面
+      if (!_cfPrompted && isCloudflareChallenge(html)) {
+        _cfPrompted = true;
+        newBook._downloading = false;
+        newBook._downloaded = 0;
+        newBook.totalWords = 0;
+        saveDataNow();
+        renderBookshelf();
+        const bookUrl = _selectedOnlineBook?.url || _onlineChapters[0]?.url;
+        if (confirm('书源需要人机验证。\n\n点击「确定」在新标签页打开书源网站，请完成验证后回到本页重试。\n\n（验证完成后，重新点击「加入书架」即可）')) {
+          window.open(bookUrl, '_blank');
+        }
+        showToast('⚠️ 请完成验证后，重新点击「加入书架」');
+        return;
+      }
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const c = extractChapterContent(doc, src.contentSel);
