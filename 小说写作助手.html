@@ -7809,6 +7809,11 @@ async function searchOnlineNovels() {
         const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
         html = await fetchWithCORS(searchUrl, 0);
       }
+      // 检测 Cloudflare 验证页面
+      if (isCloudflareChallenge(html)) {
+        hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：需人机验证，<a href="' + src.baseUrl + '" target="_blank" style="color:var(--accent);">点击打开书源验证 →</a>';
+        continue;
+      }
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const items = doc.querySelectorAll(src.itemSel);
