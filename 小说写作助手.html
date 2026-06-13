@@ -8423,39 +8423,54 @@ async function fetchWithCORS(url, _unused, options) {
     throw new Error('POST 代理均不可用');
   }
 
-  // GET: 直连优先（多数书源允许 CORS）
+  // GET: 直连跳过（跨域必定失败，直接走代理省时间）
   let directErr = '';
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 15000);
-    const resp = await fetch(url, { signal: c.signal });
-    clearTimeout(t);
-    if (resp.ok) {
-      const text = await resp.text();
-      if (text && text.length >= 100) return text;
+  const doNotDirect = true; // alicesw.com 不允许跨域，跳过直连
+  if (!doNotDirect) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 8000);
+      const resp = await fetch(url, { signal: c.signal });
+      clearTimeout(t);
+      if (resp.ok) {
+        const text = await resp.text();
+        if (text && text.length >= 100) return text;
+      }
+      directErr = 'HTTP ' + resp.status + ' 或响应过短';
+    } catch(e) {
+      directErr = e.message || '网络错误';
     }
-    directErr = 'HTTP ' + resp.status + ' 或响应过短';
-  } catch(e) {
-    directErr = e.message || '网络错误';
   }
 
   // GET: 代理兜底
   const proxies = getProxyList();
+  console.log('[fetchWithCORS] 代理列表:', proxies.length + '个, 目标:', url.substring(0, 80));
   for (let i = 0; i < proxies.length; i++) {
     try {
       const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 15000);
+      const t = setTimeout(() => c.abort(), 12000);
       const proxyUrl = proxies[i] + encodeURIComponent(url);
+      console.log('[fetchWithCORS] 尝试代理#' + i + ':', proxyUrl.substring(0, 100) + '...');
       const resp = await fetch(proxyUrl, { signal: c.signal });
       clearTimeout(t);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) {
+        console.warn('[fetchWithCORS] 代理#' + i + ' HTTP错误:', resp.status);
+        throw new Error('HTTP ' + resp.status);
+      }
       const text = await resp.text();
+      console.log('[fetchWithCORS] 代理#' + i + ' 响应长度:', text.length, '前100字:', text.substring(0, 100));
       if (text && text.length >= 100) {
-        // 检测 Cloudflare 验证页面 → 跳过此代理尝试下一个
-        if (isCloudflareChallenge(text)) continue;
+        if (isCloudflareChallenge(text)) {
+          console.warn('[fetchWithCORS] 代理#' + i + ' 检测到CF验证页, 跳过');
+          continue;
+        }
+        console.log('[fetchWithCORS] 代理#' + i + ' 成功!');
         return text;
       }
-    } catch(e) { /* 继续尝试下一个代理 */ }
+      console.warn('[fetchWithCORS] 代理#' + i + ' 响应过短:', text.length);
+    } catch(e) {
+      console.error('[fetchWithCORS] 代理#' + i + ' 异常:', e.message);
+    }
   }
 
   throw new Error('请求失败：' + directErr + '（直连和所有代理均不可用）');
