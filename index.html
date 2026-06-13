@@ -8061,7 +8061,8 @@ async function readOnlineChapter(idx) {
     const html = await fetchWithCORS(ch.url, 0);
     // 检测 Cloudflare 验证页面
     if (isCloudflareChallenge(html)) {
-      previewBox.innerHTML = '<div style=\'padding: 40px; text-align: center; color: var(--muted);\'><p style=\'font-size: 48px; margin-bottom: 16px;\'>🛡️</p><p style=\'font-size: 16px;\'>书源需要人机验证</p><p style=\'margin-top: 16px;\'><a href=\'' + ch.url + '\' target=\'_blank\' style=\'color: var(--accent);\'>点击在浏览器中验证 →</a></p><p style=\'font-size: 12px; color: var(--muted); margin-top: 12px;\'>完成验证后重新点击预览即可</p></div>';
+      showToast('⚠️ 书源需要人机验证，正在打开验证页面...');
+      window.open(ch.url, '_blank');
       return;
     }
     const parser = new DOMParser();

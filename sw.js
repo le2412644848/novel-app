@@ -1,4 +1,4 @@
-const CACHE = 'novel-v7';
+const CACHE = 'novel-v8';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
