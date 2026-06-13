@@ -2500,30 +2500,33 @@ function openDB() {
 let _dbPromise = null;
 function getDB() { if (!_dbPromise) _dbPromise = openDB().catch(e => { _dbPromise = null; throw e; }); return _dbPromise; }
 async function dbSave(key, val) {
-  try {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('data', 'readwrite');
-      const store = tx.objectStore('data');
-      store.put(JSON.stringify(val), key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch(e) { fallbackToLS(); }
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('data', 'readwrite');
+    const store = tx.objectStore('data');
+    store.put(JSON.stringify(val), key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(new Error('事务中止'));
+  });
 }
 async function dbLoad(key) {
-  try { const db = await getDB(); return new Promise(r => { const t = db.transaction('data').objectStore('data').get(key); t.onsuccess = () => { try { r(JSON.parse(t.result)); } catch(e) { r(null); } }; t.onerror = () => r(null); }); } catch(e) { return null; }
+  const db = await getDB();
+  return new Promise(r => {
+    const t = db.transaction('data').objectStore('data').get(key);
+    t.onsuccess = () => { try { r(t.result ? JSON.parse(t.result) : null); } catch(e) { r(null); } };
+    t.onerror = () => r(null);
+  });
 }
 async function dbDelete(key) {
-  try {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('data', 'readwrite');
-      tx.objectStore('data').delete(key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch(e) {}
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('data', 'readwrite');
+    tx.objectStore('data').delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(new Error('事务中止'));
+  });
 }
 function fallbackToLS() { /* 忽略，静默降级 */ }
 
@@ -2728,7 +2731,7 @@ async function _doSave() {
       }
     }
   }
-  dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
+  await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
 }
 
 function saveDataNow() {
