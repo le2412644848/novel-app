@@ -2559,7 +2559,7 @@ function loadData() {
     } else {
       try {
         const d = localStorage.getItem('novelWriterData');
-        if (d) { const parsed = JSON.parse(d); novels = parsed.novelsMeta || []; dbSave('novelWriterData', parsed); }
+        if (d) { const parsed = JSON.parse(d); novels = parsed.novelsMeta || []; dbSave('novelWriterData', parsed); try { localStorage.removeItem('novelWriterData'); } catch(e) {} }
       } catch(e) {}
     }
     dbLoad('theme').then(t => { if (t) { currentTheme = t; document.documentElement.setAttribute('data-theme', t); const btn = document.getElementById('themeBtn'); if (btn) btn.textContent = t === 'dark' ? '🌙' : '☀'; } }).catch(() => {});
@@ -2598,6 +2598,8 @@ async function migrateOldFormat(oldData) {
     readerSkin: oldData.readerSkin, readerFontSize: oldData.readerFontSize,
     readerLineHeight: oldData.readerLineHeight, readerBrightness: oldData.readerBrightness
   });
+  // 清理旧的localStorage数据，释放配额
+  try { localStorage.removeItem('novelWriterData'); } catch(e) {}
   showToast('✅ 数据优化完成');
 }
 
@@ -4024,10 +4026,10 @@ function saveSettings() {
   if (key) {
     if (!key.startsWith('sk-')) { showToast('❌ API Key 格式不对'); return; }
     API_KEY = key;
-    localStorage.setItem('nwApiKey', encryptKey(key));
+    try { localStorage.setItem('nwApiKey', encryptKey(key)); } catch(e) {}
   } else {
     API_KEY = '';
-    localStorage.removeItem('nwApiKey');
+    try { localStorage.removeItem('nwApiKey'); } catch(e) {}
   }
   chapterWordTarget = parseInt(document.getElementById('settingsWordTarget').value) || 2000;
   const tempSlider = document.getElementById('settingsTemperature');
@@ -4042,8 +4044,8 @@ function saveSettings() {
   if (ff) fontFamily = ff.value;
   dailyBudget = parseInt(document.getElementById('settingsDailyBudget').value) || 0;
   monthlyBudget = parseInt(document.getElementById('settingsMonthlyBudget').value) || 0;
-  localStorage.setItem('dailyBudget', dailyBudget);
-  localStorage.setItem('monthlyBudget', monthlyBudget);
+  try { localStorage.setItem('dailyBudget', dailyBudget); } catch(e) {}
+  try { localStorage.setItem('monthlyBudget', monthlyBudget); } catch(e) {}
   applyFontFamily();
   // 立即应用字号到 paper
   document.getElementById('paperArea')?.style.setProperty('font-size', fontSize + 'px');
@@ -6191,7 +6193,7 @@ let dailyWordGoal = parseInt(localStorage.getItem('dailyWordGoal') || 0);
 
 function setDailyGoal(words) {
   dailyWordGoal = words;
-  localStorage.setItem('dailyWordGoal', words);
+  try { localStorage.setItem('dailyWordGoal', words); } catch(e) {}
   updateGoalRing();
   if (words > 0) showToast('每日目标设为 ' + words.toLocaleString() + ' 字');
   else showToast('已取消每日目标');
