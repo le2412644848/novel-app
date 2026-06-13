@@ -4707,7 +4707,7 @@ function parseTxt(text, filename) {
     readingProgress: 0
   });
 
-  saveData();
+  saveDataNow();
   currentShelfTab = 'bookshelf';
   renderHome();
   showToast('✅ 导入成功：' + title + ' · ' + chapters.length + '章 · ' + totalWords.toLocaleString() + '字');
@@ -4758,6 +4758,10 @@ async function parseEpub(buffer, filename) {
     const view = new DataView(buffer);
     const utf8dec = new TextDecoder('utf-8');
     const files = {}; // filename -> decoded string content
+
+    // 检查 DecompressionStream 可用性
+    const hasDS = typeof DecompressionStream !== 'undefined';
+    console.log('EPUB解析开始:', filename, '大小:', arr.length, 'DecompressionStream:', hasDS);
 
     // 智能解码：UTF-8优先，检测乱码后尝试GBK/GB18030
     function decodeBytes(bytes, isHtml) {
@@ -5042,7 +5046,7 @@ async function parseEpub(buffer, filename) {
       readingProgress: 0
     });
 
-    saveData();
+    await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
     currentShelfTab = 'bookshelf';
     renderHome();
     showToast('✅ 导入成功：' + title + ' · ' + chapters.length + '章 · ' + totalWords.toLocaleString() + '字');
