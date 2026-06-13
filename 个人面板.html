@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>我的面板</title>
+<style>
+:root{--bg:#0b0e14;--card:#181e2b;--border:#2a3143;--text:#e4e9f2;--text2:#8b95a8;--text3:#5a6478;--accent:#6c8cff;--accent2:#5ce0a0;--danger:#f0506a;--radius:14px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+.page{max-width:640px;margin:0 auto;padding:0 14px 20px}
+.header{display:flex;align-items:center;gap:10px;padding:12px 0 14px;border-bottom:1px solid var(--border);margin-bottom:14px;position:sticky;top:0;background:var(--bg);z-index:10}
+.header h1{font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;flex:1}
+.header .icon-btn{background:var(--card);border:1px solid var(--border);color:var(--text2);width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px;justify-content:space-between}
+.section{position:relative}
+.weather-row{display:flex;align-items:center;gap:12px;padding:4px 0}
+.weather-row .temp{font-size:32px;font-weight:700;line-height:1}
+.weather-row .info{font-size:13px;color:var(--text2);line-height:1.5}
+.detail-row{display:flex;gap:12px;margin-top:8px;font-size:12px;color:var(--text3);flex-wrap:wrap}
+.detail-row span{background:rgba(255,255,255,.03);padding:3px 10px;border-radius:6px}
+.aqi-cir{border-radius:50%;padding:2px 8px;font-weight:700}
+.loading{text-align:center;padding:20px;color:var(--text3);font-size:13px}
+.error{text-align:center;padding:20px;color:var(--danger);font-size:13px}
+.empty{text-align:center;padding:20px;color:var(--text3);font-size:13px}
+.hot-list{list-style:none}
+.hot-list li{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:8px;font-size:13px}
+.hot-list li:last-child{border:none}
+.hot-list .rank{width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.rank-1{background:linear-gradient(135deg,#f00,#c00);color:#fff}
+.rank-2{background:linear-gradient(135deg,#f90,#e60);color:#fff}
+.rank-3{background:linear-gradient(135deg,#fa0,#d80);color:#fff}
+.rank-n{background:var(--card);color:var(--text3);border:1px solid var(--border)}
+.rate-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rate-item{background:rgba(255,255,255,.03);border-radius:8px;padding:10px;text-align:center}
+.rate-item .cur{font-size:18px;font-weight:700}
+.rate-item .label{font-size:11px;color:var(--text3);margin-top:2px}
+.rate-item .change{font-size:11px}
+.rate-up{color:var(--danger)}
+.rate-down{color:var(--accent2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:12px;margin-top:6px}
+.cal-grid .hdr{color:var(--text3);padding:4px 0;font-size:11px}
+.cal-grid .day{padding:5px 0;border-radius:4px}
+.cal-grid .today{background:var(--accent);color:#fff;font-weight:700}
+.cal-grid .other{color:var(--text3)}
+.cal-info{text-align:center;margin-bottom:6px;font-size:14px;font-weight:600}
+.countdown-grid{display:grid;gap:8px}
+.countdown-item{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.03);padding:10px 12px;border-radius:8px}
+.countdown-item .name{font-size:13px}
+.countdown-item .days{font-size:18px;font-weight:700;color:var(--accent)}
+.countdown-item .days span{font-size:11px;font-weight:400;color:var(--text3)}
+.countdown-add{display:flex;gap:6px;margin-top:8px}
+.countdown-add input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px;font-family:inherit}
+.countdown-add input:focus{outline:none;border-color:var(--accent)}
+.countdown-add button{padding:8px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:13px;cursor:pointer}
+.todo-input{display:flex;gap:6px;margin-bottom:8px}
+.todo-input input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px;font-family:inherit}
+.todo-input input:focus{outline:none;border-color:var(--accent)}
+.todo-input button{width:36px;height:36px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-size:16px;cursor:pointer}
+.todo-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.todo-item:last-child{border:none}
+.todo-item .cb{width:18px;height:18px;border-radius:50%;border:2px solid var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:transparent;font-size:10px;color:transparent}
+.todo-item .cb.done{border-color:var(--accent2);background:var(--accent2);color:#fff}
+.todo-item .text{flex:1;font-size:13px}
+.todo-item .text.done{text-decoration:line-through;color:var(--text3)}
+.todo-item .del{background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:2px}
+.btn-link{background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:2px 6px}
+.btn-link:hover{text-decoration:underline}
+.news-item{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+.news-item:last-child{border:none}
+.news-item .src{font-size:11px;color:var(--text3);margin-top:1px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-overlay.active{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px}
+.modal h2{font-size:17px;margin-bottom:12px}
+.modal label{font-size:12px;color:var(--text2);display:block;margin-bottom:3px}
+.modal input,.modal select{width:100%;padding:9px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit}
+.modal input:focus{outline:none;border-color:var(--accent)}
+.modal .btn-group{display:flex;gap:8px;margin-top:4px}
+.modal .btn-group button{flex:1;padding:9px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:500}
+.btn-cancel{background:var(--card);color:var(--text2)}
+.btn-save{background:var(--accent);color:#fff}
+.toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#1f2637;border:1px solid var(--border);border-radius:10px;padding:8px 18px;font-size:13px;z-index:300;display:none;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.toast.show{display:block;animation:fadeIn .2s}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+@media(max-width:480px){.weather-row .temp{font-size:28px}.header{padding:10px 0 12px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <h1>☀ 我的面板</h1>
+    <button class="icon-btn" onclick="showSettings()">⚙</button>
+  </div>
+
+  <!-- 🌤 天气 -->
+  <div class="card">
+    <div class="card-title">🌤 今日天气</div>
+    <div id="weatherContent"><div class="loading">加载中…</div></div>
+  </div>
+
+  <!-- 📅 日历农历 -->
+  <div class="card">
+    <div class="card-title">📅 日历·农历</div>
+    <div id="calendarContent"><div class="loading">计算中…</div></div>
+  </div>
+
+
+
+  <!-- 🐙 GitHub 热门 -->
+  <div class="card">
+    <div class="card-title">🐙 GitHub 热门 <button class="btn-link" onclick="fetchGitHubTrending()">🔄 刷新</button></div>
+    <div id="githubContent"><div class="loading">获取中…</div></div>
+  </div>
+
+  <!-- 💱 汇率 -->
+  <div class="card">
+    <div class="card-title">💱 汇率·金价</div>
+    <div id="rateContent"><div class="loading">获取中…</div></div>
+  </div>
+
+  <!-- ⏰ 倒计时 -->
+  <div class="card">
+    <div class="card-title">⏰ 倒计时·纪念日</div>
+    <div id="countdownContent"><div class="loading">加载中…</div></div>
+  </div>
+
+  <!-- 📰 今日新闻 -->
+  <div class="card">
+    <div class="card-title">📰 今日新闻 <button class="btn-link" onclick="fetchNews()">🔄 刷新</button></div>
+    <div id="newsContent"><div class="loading">获取中…</div></div>
+  </div>
+
+
+
+  <!-- ✅ 待办 -->
+  <div class="card">
+    <div class="card-title">✅ 待办事项 <span style="font-size:11px;font-weight:400;color:var(--text3)" id="todoCount"></span></div>
+    <div class="todo-input">
+      <input id="todoInput" placeholder="添加待办…" onkeydown="if(event.key==='Enter')addTodo()">
+      <button onclick="addTodo()">+</button>
+    </div>
+    <div id="todoList"></div>
+  </div>
+
+  <div style="text-align:center;padding:10px 0 20px;font-size:11px;color:var(--text3)">数据来源 wttr.in / exchange-api / Google 新闻</div>
+</div>
+
+<!-- 设置 -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙ 设置</h2>
+    <label>城市（天气）</label>
+    <input id="cityInput" placeholder="如：北京、Shanghai">
+    <label>RSS 源（可选）</label>
+    <input id="rssInput" placeholder="自定义新闻源">
+    <div class="btn-group">
+      <button class="btn-cancel" onclick="closeModal('settingsModal')">取消</button>
+      <button class="btn-save" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const K='myDashboard2';let city='北京',rss='',todos=[],countdowns=[];
+
+function load(){try{const d=JSON.parse(localStorage.getItem(K));if(d){city=d.city||'北京';rss=d.rss||'';todos=d.todos||[];countdowns=d.countdowns||[]}}catch(e){}}
+function save(){localStorage.setItem(K,JSON.stringify({city,rss,todos,countdowns}))}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function $(id){return document.getElementById(id)}
+
+function showModal(id){$(id).classList.add('active')}
+function closeModal(id){$(id).classList.remove('active')}
+
+let tt;function toast(m){const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2000)}
+
+// ===== 天气 =====
+async function fetchWeather(){
+  const el=$('weatherContent');el.innerHTML='<div class="loading">☁ 查询天气…</div>';
+  try{
+    const r=await fetch('https://wttr.in/'+encodeURIComponent(city)+'?format=j1&lang=zh');
+    if(!r.ok)throw Error('请求失败');
+    const d=await r.json(),cur=d.current_condition[0],w=d.weather?.[0];
+    const a=d.nearest_area?.[0],cityName=a?.areaName?.[0]?.value||city;
+    const cty=a?.country?.[0]?.value||'',t=cur.temp_C,f=cur.FeelsLikeC;
+    const desc=cur.weatherDesc?.[0]?.value||'未知',h=cur.humidity,ws=cur.windspeedKmph,uv=cur.uvIndex;
+    const vis=cur.visibility,aqi=cur.airQuality?.['us-epa-index']||'';
+    const em=['☀️','🌤','⛅','☁️','🌫','🌧','⛈','🌨'][Math.min(7,Math.floor((parseInt(cur.weatherCode||0)||0)/30))];
+    const sr=w?.astronomy?.[0]?.sunrise||'',ss=w?.astronomy?.[0]?.sunset||'';
+    el.innerHTML=`<div class="weather-row"><span style="font-size:36px">${em}</span><span class="temp">${t}°</span><div class="info">${cityName}${cty?', '+cty:''}<br>${desc} · 体感${f}°</div></div>
+    <div class="detail-row">${h?`<span>💧 ${h}%</span>`:''}${ws?`<span>🌬 ${ws}km/h</span>`:''}${uv?`<span>☀ UV${uv}</span>`:''}${vis?`<span>👁 ${vis}km</span>`:''}${sr?`<span>🌅 ${sr}/${ss}</span>`:''}</div>`;
+  }catch(e){el.innerHTML=`<div class="error">❌ ${esc(e.message)}</div>`}
+}
+
+// ===== 日历农历 =====
+function renderCalendar(){
+  const el=$('calendarContent');const now=new Date();
+  const y=now.getFullYear(),m=now.getMonth()+1,d=now.getDate();
+  const wd=['日','一','二','三','四','五','六'][now.getDay()];
+  const l = lunar(y,m,d);
+  const firstDow=new Date(y,m-1,1).getDay();
+  const days=new Date(y,m,0).getDate();
+  const lastMonthDays=new Date(y,m-1,0).getDate();
+  let html=`<div class="cal-info">${y}年${m}月${d}日 星期${wd} · 农历${l}</div><div class="cal-grid">`;
+  ['日','一','二','三','四','五','六'].forEach(h=>html+=`<div class="hdr">${h}</div>`);
+  for(let i=firstDow-1;i>=0;i--)html+=`<div class="day other">${lastMonthDays-i}</div>`;
+  for(let i=1;i<=days;i++)html+=`<div class="day${i===d?' today':''}">${i}</div>`;
+  const remain=42-(firstDow+days);for(let i=1;i<=remain;i++)html+=`<div class="day other">${i}</div>`;
+  el.innerHTML=html+'</div>';
+}
+
+function lunar(y,m,d){
+  // 简化农历：1900-2100 年农历数据
+  const lY=[0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,0x06566,0x0d4a0,0x0ea50,0x16a95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,0x06ca0,0x0b550,0x15355,0x04da0,0x0a5b0,0x14573,0x052b0,0x0a9a8,0x0e950,0x06aa0,0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b6a0,0x195a6,0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x05ac0,0x0ab60,0x096d5,0x092e0,0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,0x05aa0,0x076a3,0x096d0,0x04afb,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,0x14b63];
+  const gzY=['甲子','乙丑','丙寅','丁卯','戊辰','己巳','庚午','辛未','壬申','癸酉','甲戌','乙亥','丙子','丁丑','戊寅','己卯','庚辰','辛巳','壬午','癸未','甲申','乙酉','丙戌','丁亥','戊子','己丑','庚寅','辛卯','壬辰','癸巳','甲午','乙未','丙申','丁酉','戊戌','己亥','庚子','辛丑','壬寅','癸卯','甲辰','乙巳','丙午','丁未','戊申','己酉','庚戌','辛亥','壬子','癸丑','甲寅','乙卯','丙辰','丁巳','戊午','己未','庚申','辛酉','壬戌','癸亥'];
+  const gzM=['寅月','卯月','辰月','巳月','午月','未月','申月','酉月','戌月','亥月','子月','丑月'];
+  const lunarMonths=['正','二','三','四','五','六','七','八','九','十','冬','腊'];
+  const lunarDays=['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
+  // 计算农历年
+  let i,leap=0,temp=0,offset=(Date.UTC(y,m-1,d)-Date.UTC(1900,0,31))/86400000;
+  for(i=1900;i<2101&&offset>0;i++){temp=lY[i-1900];offset-=((temp>>16)&0xf)?13:12;}
+  if(offset<0){offset+=((lY[i-1900-1]>>16)&0xf)?13:12;i--;}
+  const lunarYear=i, yearGz=gzY[(lunarYear-4)%60];
+  const leapMonth=(lY[i-1900]>>16)&0xf;
+  let isLeap=false;
+  for(i=1;i<=12&&offset>0;i++){
+    if(leapMonth>0&&i===(leapMonth+1)&&!isLeap){--i;isLeap=true;temp=((lY[lunarYear-1900]>>16)&0xf)?(lY[lunarYear-1900]&0xffff)>0x10000?30:29:0;}
+    else{temp=(lY[lunarYear-1900]>>(12-i*2))&0x3?30:29;isLeap=false;}
+    offset-=temp;
+  }
+  if(offset===0&&leapMonth>0&&i===leapMonth+1)isLeap=true;
+  if(offset<0){offset+=temp;i--;}
+  const lunarMonth=i>12?i-12:i, lunarDay=offset+1;
+  const mStr=(isLeap?'闰':'')+lunarMonths[lunarMonth-1]+'月', dStr=lunarDays[lunarDay-1];
+  return yearGz+'年 '+mStr+dStr;
+}
+
+// ===== GitHub 热门 =====
+async function fetchGitHubTrending(){
+  const el=$('githubContent');el.innerHTML='<div class="loading">🐙 获取热门项目…</div>';
+  try{
+    // 取最近7天创建的项目，按星数排序
+    const d=new Date();d.setDate(d.getDate()-7);
+    const dateStr=d.toISOString().split('T')[0];
+    const r=await fetch('https://api.github.com/search/repositories?q=created:%3E'+dateStr+'&sort=stars&order=desc&per_page=10',{headers:{'Accept':'application/vnd.github.v3+json'}});
+    if(!r.ok)throw Error('请求失败');
+    const j=await r.json();
+    const items=j?.items||[];
+    if(!items.length)throw Error('暂无数据');
+    el.innerHTML='<ol class="hot-list">'+items.map((item,i)=>{
+      const rk=i<3?`rank-${i+1}`:'rank-n';
+      return `<li><span class="rank ${rk}">${i+1}</span><span><a href="${item.html_url}" target="_blank" style="color:var(--text);text-decoration:none">${esc(item.full_name)}</a></span><span style="margin-left:auto;font-size:11px;color:var(--text3)">⭐${item.stargazers_count}</span></li>`;
+    }).join('')+'</ol>';
+  }catch(e){el.innerHTML=`<div class="error">❌ ${esc(e.message)}</div>`}
+}
+
+// ===== 汇率 =====
+async function fetchRates(){
+  const el=$('rateContent');el.innerHTML='<div class="loading">💱 获取汇率…</div>';
+  try{
+    const r=await fetch('https://api.exchangerate-api.com/v4/latest/CNY');
+    if(!r.ok)throw Error('请求失败');
+    const d=await r.json();
+    const rates=d.rates;
+    const items=[
+      {label:'美元 USD',cur:rates.USD?.toFixed(4)||'-',flag:'🇺🇸'},
+      {label:'港币 HKD',cur:rates.HKD?.toFixed(4)||'-',flag:'🇭🇰'},
+      {label:'欧元 EUR',cur:rates.EUR?.toFixed(4)||'-',flag:'🇪🇺'},
+      {label:'日元 JPY',cur:rates.JPY?.toFixed(2)||'-',flag:'🇯🇵'},
+      {label:'英镑 GBP',cur:rates.GBP?.toFixed(4)||'-',flag:'🇬🇧'},
+      {label:'澳元 AUD',cur:rates.AUD?.toFixed(4)||'-',flag:'🇦🇺'},
+    ];
+    el.innerHTML='<div class="rate-grid">'+items.map(i=>`<div class="rate-item"><div class="cur">${i.flag} ${i.cur}</div><div class="label">${i.label}</div></div>`).join('')+'</div>';
+    // 金价
+    try{
+      const g=await fetch('https://api.gold-api.com/price/XAU');
+      if(g.ok){const gd=await g.json();el.innerHTML+=`<div style="text-align:center;margin-top:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:8px;font-size:13px">🥇 国际金价：<strong>$${(gd.price||'-').toLocaleString()}</strong>/盎司</div>`}
+    }catch(e){}
+  }catch(e){el.innerHTML=`<div class="error">❌ ${esc(e.message)}</div>`}
+}
+
+// ===== 倒计时 =====
+function renderCountdowns(){
+  const el=$('countdownContent');
+  let html='<div class="countdown-grid">';
+  if(countdowns.length===0)html+='<div class="empty">还没有纪念日，添加一个吧</div>';
+  else{
+    countdowns.forEach((c,i)=>{
+      const diff=Math.ceil((new Date(c.date)-new Date())/86400000);
+      const txt=diff>0?`<span>天后</span>`:diff===0?`<span>就是今天！</span>`:`<span>天前</span>`;
+      html+=`<div class="countdown-item"><span class="name">${esc(c.name)}</span><span class="days">${Math.abs(diff)} ${txt} <button class="btn-link" onclick="delCountdown(${i})">✕</button></span></div>`;
+    });
+  }
+  html+=`</div><div class="countdown-add"><input id="cdName" placeholder="名称"><input id="cdDate" type="date" onfocus="this.showPicker?.()"><button onclick="addCountdown()">+</button></div>`;
+  el.innerHTML=html;
+}
+function addCountdown(){
+  const n=$('cdName').value.trim(),d=$('cdDate').value;
+  if(!n||!d){toast('请填写名称和日期');return}
+  countdowns.push({name:n,date:d});save();renderCountdowns();toast('已添加');
+}
+function delCountdown(i){countdowns.splice(i,1);save();renderCountdowns();}
+
+// ===== 今日新闻 =====
+async function fetchNews(){
+  const el=$('newsContent');el.innerHTML='<div class="loading">📡 获取新闻…</div>';
+  try{
+    const r=await fetch('https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent('https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans'));
+    if(!r.ok)throw Error('请求失败');
+    const d=await r.json();
+    if(d.status!=='ok')throw Error('获取失败');
+    const items=(d.items||[]).slice(0,12);
+    if(!items.length)throw Error('无数据');
+    el.innerHTML=items.map(i=>`<div class="news-item" onclick="window.open('${i.link}','_blank')"><div>${esc(i.title)}</div><div class="src">Google 新闻 · ${i.pubDate?new Date(i.pubDate).toLocaleDateString('zh-CN'):''}</div></div>`).join('');
+  }catch(e){el.innerHTML='<div class="empty">暂无新闻<br><span style="font-size:11px">'+(e.message||'网络错误')+'</span></div>'}
+}
+
+
+// ===== 待办 =====
+function renderTodos(){
+  const el=$('todoList');const left=todos.filter(t=>!t.done).length;
+  $('todoCount').textContent=todos.length?`剩余 ${left}`:'';
+  if(!todos.length){el.innerHTML='<div class="empty">还没有待办</div>';return}
+  el.innerHTML=todos.map((t,i)=>`<div class="todo-item"><button class="cb${t.done?' done':''}" onclick="toggleTodo(${i})">${t.done?'✓':''}</button><span class="text${t.done?' done':''}">${esc(t.text)}</span><button class="del" onclick="delTodo(${i})">✕</button></div>`).join('');
+}
+function addTodo(){const t=$('todoInput').value.trim();if(!t)return;todos.push({text:t,done:false});save();$('todoInput').value='';renderTodos();toast('已添加')}
+function toggleTodo(i){todos[i].done=!todos[i].done;save();renderTodos()}
+function delTodo(i){todos.splice(i,1);save();renderTodos()}
+
+// ===== 设置 =====
+function showSettings(){$('cityInput').value=city;$('rssInput').value=rss;showModal('settingsModal')}
+function saveSettings(){city=$('cityInput').value.trim()||'北京';rss=$('rssInput').value.trim();save();closeModal('settingsModal');fetchWeather();toast('已保存')}
+
+// ===== 初始化 =====
+document.querySelectorAll('.modal-overlay').forEach(el=>{el.addEventListener('click',e=>{if(e.target===el)el.classList.remove('active')})});
+load();fetchWeather();renderCalendar();fetchGitHubTrending();fetchRates();renderCountdowns();fetchNews();renderTodos();
+</script>
+</body>
+</html>

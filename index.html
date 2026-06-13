@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>小说坊 — AI写作助手</title>
-<meta name="theme-color" content="#0a0e15">
+<meta name="theme-color" content="#0b0e14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="小说坊">
-<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✧</text></svg>">
 <link rel="manifest" href="./manifest.json">
 <style>
 :root {
@@ -4242,8 +4242,14 @@ function exportNovelMd() {
 (function(){
   // 注册 Service Worker（网络优先，离线回退缓存）
   if ('serviceWorker' in navigator) {
+    const CACHE = 'novel-v2';
+    const swCode = `const C='${CACHE}';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(res=>{if(res.ok){const r=res.clone();caches.open(C).then(c=>c.put(e.request,r));}return res;}).catch(()=>caches.match(e.request)));});`;
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    const swBlob = new Blob([swCode], {type:'application/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
   }
 
   let deferredPrompt = null;
