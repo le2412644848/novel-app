@@ -8389,11 +8389,13 @@ function clearSiteCache() {
 
 function getProxyList() {
   const proxies = [];
-  // 1. corsfix 公共代理（服务器端抓取，不触发 CF 验证，限 500 次/天免费）
+  // 1. corsproxy.io — github.io 免费层，格式 ?url=
+  proxies.push('https://corsproxy.io/?url=');
+  // 2. corsfix — 需浏览器 Origin 头
   proxies.push('https://proxy.corsfix.com/?');
-  // 2. SW 内置代理（同源中转，需预先完成 CF 验证才有 cookie）
+  // 3. SW 内置代理（同源中转，需预先完成 CF 验证）
   proxies.push('./proxy?url=');
-  // 3. Cloudflare Worker 自建代理（需部署 workers.dev）
+  // 4. Cloudflare Worker 自建代理
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
