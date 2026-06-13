@@ -8423,28 +8423,12 @@ async function fetchWithCORS(url, _unused, options) {
     throw new Error('POST 代理均不可用');
   }
 
-  // GET: 直连优先（多数书源允许 CORS）
-  let directErr = '';
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 15000);
-    const resp = await fetch(url, { signal: c.signal });
-    clearTimeout(t);
-    if (resp.ok) {
-      const text = await resp.text();
-      if (text && text.length >= 100) return text;
-    }
-    directErr = 'HTTP ' + resp.status + ' 或响应过短';
-  } catch(e) {
-    directErr = e.message || '网络错误';
-  }
-
-  // GET: 代理兜底
+  // GET: 跳过直连（跨域必失败），直接走代理
   const proxies = getProxyList();
   for (let i = 0; i < proxies.length; i++) {
     try {
       const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 15000);
+      const t = setTimeout(() => c.abort(), 30000);
       const proxyUrl = proxies[i] + encodeURIComponent(url);
       const resp = await fetch(proxyUrl, { signal: c.signal });
       clearTimeout(t);
@@ -8458,7 +8442,7 @@ async function fetchWithCORS(url, _unused, options) {
     } catch(e) { /* 继续尝试下一个代理 */ }
   }
 
-  throw new Error('请求失败：' + directErr + '（直连和所有代理均不可用）');
+  throw new Error('所有代理均不可用');
 }
 
 // ===== 延迟初始化（确保所有函数已定义） =====
