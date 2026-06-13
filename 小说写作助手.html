@@ -8389,14 +8389,14 @@ function clearSiteCache() {
 
 function getProxyList() {
   const proxies = [];
-  // 1. SW 内置代理（同源中转，绕过浏览器 CORS）— 始终优先尝试
+  // 1. corsfix 公共代理（服务器端抓取，不触发 CF 验证，限 500 次/天免费）
+  proxies.push('https://proxy.corsfix.com/?');
+  // 2. SW 内置代理（同源中转，需预先完成 CF 验证才有 cookie）
   proxies.push('./proxy?url=');
-  // 2. Cloudflare Worker 代理（需 VPN 访问 workers.dev）
+  // 3. Cloudflare Worker 自建代理（需部署 workers.dev）
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
-  // 3. corsfix 公共代理（需浏览器 Origin 头，限 500 次/天免费）
-  proxies.push('https://proxy.corsfix.com/?');
   return proxies;
 }
 
@@ -8454,7 +8454,11 @@ async function fetchWithCORS(url, _unused, options) {
       clearTimeout(t);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
-      if (text && text.length >= 100) return text;
+      if (text && text.length >= 100) {
+        // 检测 Cloudflare 验证页面 → 跳过此代理尝试下一个
+        if (isCloudflareChallenge(text)) continue;
+        return text;
+      }
     } catch(e) { /* 继续尝试下一个代理 */ }
   }
 
