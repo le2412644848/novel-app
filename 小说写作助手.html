@@ -7797,12 +7797,10 @@ async function searchOnlineNovels() {
   resultsEl.innerHTML = '<div class="os-loading"><div class="spinner"></div><p style="color:var(--text2);">正在搜索书源...</p></div>';
 
   const allResults = [];
-  const debugLog = [];
   for (const src of BOOK_SOURCES) {
     try {
-      hintEl.innerHTML = '<span class="os-status-dot searching"></span> ' + src.name + ' 搜索中...';
+      hintEl.innerHTML = '<span class="os-status-dot searching"></span> 正在搜索：' + src.name + '...';
       let html;
-      window._lastCORSLog = [];
       if (src.searchMethod === 'POST') {
         const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
         const searchBody = src.searchBody.replace('{query}', encodeURIComponent(query));
@@ -7811,11 +7809,9 @@ async function searchOnlineNovels() {
         const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
         html = await fetchWithCORS(searchUrl, 0);
       }
-      debugLog.push(...(window._lastCORSLog || []));
       // 检测 Cloudflare 验证页面
       if (isCloudflareChallenge(html)) {
-        debugLog.push('❌ ' + src.name + ': CF验证页');
-        hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：人机验证拦截 ' + getShortProxyLog();
+        hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：需人机验证，<a href="' + src.baseUrl + '" target="_blank" style="color:var(--accent);">点击打开书源验证 →</a>';
         continue;
       }
       const parser = new DOMParser();
@@ -7841,9 +7837,7 @@ async function searchOnlineNovels() {
       });
       hintEl.innerHTML = '<span class="os-status-dot success"></span> ' + src.name + '：找到 ' + count + ' 条结果';
     } catch(e) {
-      debugLog.push(...(window._lastCORSLog || []));
-      debugLog.push('❌ ' + src.name + ': ' + (e.message || '连接失败'));
-      hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：' + (e.message || '连接失败') + ' ' + getShortProxyLog();
+      hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：' + (e.message || '连接失败');
     }
   }
 
@@ -7857,14 +7851,11 @@ async function searchOnlineNovels() {
   });
 
   if (deduped.length === 0) {
-    // 输出完整调试信息
-    const debugText = debugLog.length > 0 ? '<div style="margin-top:12px;padding:10px;background:var(--bg2);border-radius:8px;font-size:11px;color:var(--text3);text-align:left;line-height:1.6;max-height:200px;overflow-y:auto;">🔍 调试: ' + debugLog.map(l => '<br>' + esc(l)).join('') + '</div>' : '';
     // 全部失败 → 提供在新标签页搜索的 fallback
     resultsEl.innerHTML = '<div class="os-empty-state">' +
       '<div class="os-empty-icon">🔍</div>' +
       '<p style="font-weight:600;color:var(--text);">未找到相关书籍</p>' +
       '<p>代理搜索无结果，可尝试直接在书源网站搜索</p>' +
-      debugText +
       '<div style="margin-top:12px;">' +
       BOOK_SOURCES.filter(s=>!s.skip).map((src, i) =>
         '<button class="btn btn-secondary btn-sm" onclick="openSourceSearch(' + i + ')" style="margin:4px;">在 ' + src.name + ' 搜索</button>'
@@ -8396,20 +8387,18 @@ function clearSiteCache() {
   });
 }
 
-function getShortProxyLog() {
-  const log = window._lastCORSLog || [];
-  if (log.length === 0) return '';
-  return ' [' + log.join(' → ') + ']';
-}
-
 function getProxyList() {
   const proxies = [];
-  // 1. Cloudflare Worker 自建代理（最优先，服务器级不触发 CF）
+  // 1. corsproxy.io — github.io 免费层，格式 ?url=
+  proxies.push('https://corsproxy.io/?url=');
+  // 2. corsfix — 需浏览器 Origin 头
+  proxies.push('https://proxy.corsfix.com/?');
+  // 3. SW 内置代理（同源中转，需预先完成 CF 验证）
+  proxies.push('./proxy?url=');
+  // 4. Cloudflare Worker 自建代理
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
-  // 2. SW 内置代理（同源中转）
-  proxies.push('./proxy?url=');
   return proxies;
 }
 
@@ -8438,53 +8427,39 @@ async function fetchWithCORS(url, _unused, options) {
     throw new Error('POST 代理均不可用');
   }
 
-  // GET: 直连跳过（跨域必定失败，直接走代理省时间）
+  // GET: 直连优先（多数书源允许 CORS）
   let directErr = '';
-  const doNotDirect = true; // alicesw.com 不允许跨域，跳过直连
-  if (!doNotDirect) {
-    try {
-      const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 8000);
-      const resp = await fetch(url, { signal: c.signal });
-      clearTimeout(t);
-      if (resp.ok) {
-        const text = await resp.text();
-        if (text && text.length >= 100) return text;
-      }
-      directErr = 'HTTP ' + resp.status + ' 或响应过短';
-    } catch(e) {
-      directErr = e.message || '网络错误';
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 15000);
+    const resp = await fetch(url, { signal: c.signal });
+    clearTimeout(t);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (text && text.length >= 100) return text;
     }
+    directErr = 'HTTP ' + resp.status + ' 或响应过短';
+  } catch(e) {
+    directErr = e.message || '网络错误';
   }
 
   // GET: 代理兜底
   const proxies = getProxyList();
-  window._lastCORSLog = (window._lastCORSLog || []);
-  window._lastCORSLog.push('代理数:' + proxies.length + ' 自定义:' + (_customProxy || '(空)'));
   for (let i = 0; i < proxies.length; i++) {
     try {
       const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 12000);
+      const t = setTimeout(() => c.abort(), 15000);
       const proxyUrl = proxies[i] + encodeURIComponent(url);
       const resp = await fetch(proxyUrl, { signal: c.signal });
       clearTimeout(t);
-      if (!resp.ok) {
-        window._lastCORSLog.push('代理#' + i + ':HTTP' + resp.status);
-        throw new Error('HTTP ' + resp.status);
-      }
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
       if (text && text.length >= 100) {
-        if (isCloudflareChallenge(text)) {
-          window._lastCORSLog.push('代理#' + i + ':CF拦截');
-          continue;
-        }
-        window._lastCORSLog.push('代理#' + i + ':成功(' + text.length + '字)');
+        // 检测 Cloudflare 验证页面 → 跳过此代理尝试下一个
+        if (isCloudflareChallenge(text)) continue;
         return text;
       }
-      window._lastCORSLog.push('代理#' + i + ':响应短(' + text.length + ')');
-    } catch(e) {
-      window._lastCORSLog.push('代理#' + i + ':' + (e.message || '异常').substring(0, 30));
-    }
+    } catch(e) { /* 继续尝试下一个代理 */ }
   }
 
   throw new Error('请求失败：' + directErr + '（直连和所有代理均不可用）');
