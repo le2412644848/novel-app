@@ -285,6 +285,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .chapter-item .ch-num {
   width: 32px;
@@ -313,7 +314,7 @@ body::before {
   color: var(--text3);
   margin-top: 2px;
 }
-.chapter-item .actions { display: flex; gap: 4px; flex-shrink: 0; }
+.chapter-item .actions { display: flex; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 .writing-container { flex: 1; display: flex; flex-direction: column; padding-bottom: 0; }
 .paper {
   flex: 1;
@@ -4758,6 +4759,31 @@ async function parseEpub(buffer, filename) {
     const utf8dec = new TextDecoder('utf-8');
     const files = {}; // filename -> decoded string content
 
+    // 智能解码：UTF-8优先，检测乱码后尝试GBK/GB18030
+    function decodeBytes(bytes, isHtml) {
+      let text = utf8dec.decode(bytes);
+      // 检测大量替换字符 → 尝试中文编码
+      const replacementCount = (text.match(/�/g) || []).length;
+      if (replacementCount > 3 || (isHtml && replacementCount > 0)) {
+        const tryDecode = (encoding) => {
+          try {
+            const dec = new TextDecoder(encoding);
+            const t = dec.decode(bytes);
+            const rc = (t.match(/�/g) || []).length;
+            if (rc < replacementCount) return t;
+          } catch(e) {}
+          return null;
+        };
+        let better = tryDecode('gbk');
+        if (!better) better = tryDecode('gb18030');
+        if (!better) better = tryDecode('big5');
+        if (better) text = better;
+      }
+      return text;
+    }
+
+    // --- ZIP 解压辅助函数 ---
+
     // --- ZIP 解压辅助函数 ---
     async function inflateZipBytes(bytes) {
       // ZIP deflate is raw deflate (no zlib header)
@@ -4833,7 +4859,7 @@ async function parseEpub(buffer, filename) {
         const commentLen = view.getUint16(pos + 32, true);
         const localHeaderOffset = view.getUint32(pos + 42, true);
         const nameBytes = new Uint8Array(buffer, pos + 46, nameLen);
-        let name = utf8dec.decode(nameBytes).replace(/\\/g, '/').replace(/^\/+/, '');
+        let name = decodeBytes(nameBytes, false).replace(/\\/g, '/').replace(/^\/+/, '');
 
         if (name.length > 0 && localHeaderOffset < arr.length) {
           const lhSig = view.getUint32(localHeaderOffset, true);
@@ -4864,7 +4890,7 @@ async function parseEpub(buffer, filename) {
         const nameLen = view.getUint16(offset + 26, true);
         const extraLen = view.getUint16(offset + 28, true);
         const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
-        let name = utf8dec.decode(nameBytes).replace(/\\/g, '/').replace(/^\/+/, '');
+        let name = decodeBytes(nameBytes, false).replace(/\\/g, '/').replace(/^\/+/, '');
         const dataOffset = offset + 30 + nameLen + extraLen;
         if (compSize === 0 || (gpFlag & 0x0008)) {
           let searchPos = dataOffset;
@@ -4893,12 +4919,13 @@ async function parseEpub(buffer, filename) {
       entryNames.push(entry.name + (entry.compMethod === 8 ? '[d]' : ''));
       if (entry.compSize <= 0 || entry.compSize >= 10 * 1024 * 1024) continue;
       const bytes = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
+      const isHtml = /\.(x?html|htm|xml)$/i.test(entry.name);
       if (entry.compMethod === 0) {
-        files[entry.name] = utf8dec.decode(bytes);
+        files[entry.name] = decodeBytes(bytes, isHtml);
       } else if (entry.compMethod === 8) {
         const decompressed = await inflateZipBytes(bytes);
         if (decompressed) {
-          files[entry.name] = utf8dec.decode(decompressed);
+          files[entry.name] = decodeBytes(decompressed, isHtml);
           deflateCount++;
         } else {
           failCount++;
