@@ -7658,7 +7658,7 @@ function openCharDialogue() {
 const BOOK_SOURCES = [
   { name: '爱丽丝书屋', baseUrl: 'https://www.alicesw.com', searchUrl: 'https://www.alicesw.com/search.html?q={query}&f=_all',
     itemSel: '.list-group-item', titleSel: 'h5 a', authorSel: 'p.text-muted a',
-    chapterSel: 'li a', contentSel: '#content',
+    chapterSel: 'li a', contentSel: '.read-content',
     chapterListPattern: '/other/chapters/id/$1.html', chapterListRegex: '/novel/(\\d+)\\.html' },
   { name: '狼人小说', baseUrl: 'https://www.langrenxiaoshuo.com', searchUrl: 'https://www.langrenxiaoshuo.com/s.php?action=search',
     searchMethod: 'POST', searchBody: 'wd={query}&objectType=2',
@@ -7867,7 +7867,7 @@ async function readOnlineChapter(idx) {
     const contentEl = doc.querySelector(src.contentSel);
     if (contentEl) content = contentEl.textContent.trim();
     if (!content || content.length < 50) {
-      const fallback = doc.querySelector('#content, .showtxt, #chaptercontent, .content, .article, .txtnav');
+      const fallback = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article, .txtnav');
       if (fallback) content = fallback.textContent.trim();
     }
     if (!content || content.length < 30) {
@@ -7924,7 +7924,7 @@ async function addOnlineBookToShelf() {
       const el = doc.querySelector(src.contentSel);
       if (el) content = el.textContent.trim();
       if (!content) {
-        const fe = doc.querySelector('#content, .showtxt, #chaptercontent, .content, .article');
+        const fe = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article');
         if (fe) content = fe.textContent.trim();
       }
       if (!content || content.length < 30) {
@@ -8087,7 +8087,7 @@ async function importBookFromUrl() {
       const html = await fetchWithCORS(chapters[i].url, 0);
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
-      const contentEl = doc.querySelector('#content, .showtxt, #chaptercontent, .content, .article');
+      const contentEl = doc.querySelector('#content, .read-content, .showtxt, #chaptercontent, .article');
       let content = contentEl ? contentEl.textContent.trim() : '';
       if (!content || content.length < 30) {
         content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : chapters[i].title;
