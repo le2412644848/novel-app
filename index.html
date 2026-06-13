@@ -4935,8 +4935,7 @@ async function parseEpub(buffer, filename) {
 
     // --- 找 container.xml 或回退：直接提取所有HTML ---
     const containerFile = Object.keys(files).find(k =>
-      k.endsWith('container.xml') || k === 'META-INF/container.xml' ||
-      k.toLowerCase().endsWith('meta-inf/container.xml')
+      k.toLowerCase().endsWith('container.xml') || k.toLowerCase().endsWith('meta-inf/container.xml')
     );
     let chapters = [];
     let title = filename.replace(/\.epub$/i, '');
@@ -4965,10 +4964,13 @@ async function parseEpub(buffer, filename) {
           if (spineMatch && manifestMatch) {
             const manifest = manifestMatch[1];
             const spine = spineMatch[1];
-            const idrefs = [...spine.matchAll(/idref="([^"]+)"/g)].map(m => m[1]);
+            const idrefs = [...spine.matchAll(/idref\s*=\s*"([^"]+)"/g)].map(m => m[1]);
+            if (idrefs.length === 0) idrefs.push(...[...spine.matchAll(/idref\s*=\s*'([^']+)'/g)].map(m => m[1]));
             const idToHref = {};
-            for (const m of manifest.matchAll(/id="([^"]+)"[^>]*href="([^"]+)"/g)) { idToHref[m[1]] = m[2]; }
-            for (const m of manifest.matchAll(/id='([^']+)'[^>]*href='([^']+)'/g)) { idToHref[m[1]] = m[2]; }
+            for (const m of manifest.matchAll(/<item\s+[^>]*?id\s*=\s*"([^"]+)"[^>]*?href\s*=\s*"([^"]+)"[^>]*?>/gi)) { idToHref[m[1]] = m[2]; }
+            for (const m of manifest.matchAll(/<item\s+[^>]*?href\s*=\s*"([^"]+)"[^>]*?id\s*=\s*"([^"]+)"[^>]*?>/gi)) { idToHref[m[2]] = m[1]; }
+            for (const m of manifest.matchAll(/<item\s+[^>]*?id\s*=\s*'([^']+)'[^>]*?href\s*=\s*'([^']+)'[^>]*?>/gi)) { idToHref[m[1]] = m[2]; }
+            for (const m of manifest.matchAll(/<item\s+[^>]*?href\s*=\s*'([^']+)'[^>]*?id\s*=\s*'([^']+)'[^>]*?>/gi)) { idToHref[m[2]] = m[1]; }
             const opfDir = opfPath.includes('/') ? opfPath.replace(/\/[^/]+$/, '') + '/' : '';
 
             for (const idref of idrefs) {
