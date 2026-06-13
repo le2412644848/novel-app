@@ -7891,7 +7891,8 @@ async function readOnlineChapter(idx) {
     openReader();
     showToast('正在阅读：' + ch.title);
   } catch(e) {
-    showToast('加载失败：' + e.message);
+    showToast('加载失败，正在打开原网页...');
+    window.open(ch.url, '_blank');
   }
 }
 
@@ -7914,6 +7915,7 @@ async function addOnlineBookToShelf() {
   saveData();
   showToast('开始下载 ' + _onlineChapters.length + ' 章...');
   let downloaded = 0;
+  let failedCount = 0;
   const total = _onlineChapters.length;
   for (let i = 0; i < total; i++) {
     try {
@@ -7939,7 +7941,18 @@ async function addOnlineBookToShelf() {
       }
     } catch(e) {
       newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（下载失败）';
+      failedCount++;
       downloaded++;
+      // 前三章全部失败 → 代理不可用，取消下载
+      if (failedCount >= 3 && downloaded <= 3) {
+        importedBooks.pop();
+        newBook._downloading = false;
+        saveData();
+        renderBookshelf();
+        showToast('⚠️ 代理不可用，正在打开原网页...');
+        window.open(_selectedOnlineBook?.url || _onlineBookData?.[0]?.url || _onlineChapters[0]?.url, '_blank');
+        return;
+      }
     }
     await new Promise(r => setTimeout(r, 400));
   }
@@ -7947,7 +7960,7 @@ async function addOnlineBookToShelf() {
   newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
   saveData();
   renderBookshelf();
-  showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章）');
+  showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章，' + failedCount + '章失败）');
 }
 
 // Fallback: 在新标签页打开书源搜索
