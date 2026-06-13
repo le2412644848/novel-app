@@ -4233,8 +4233,6 @@ function saveSettings() {
   try { localStorage.setItem('dailyBudget', dailyBudget); } catch(e) {}
   try { localStorage.setItem('monthlyBudget', monthlyBudget); } catch(e) {}
   _customProxy = document.getElementById('settingsCustomProxy').value.trim();
-  // 如果填了代理地址，跳过本地代理检测，直接用自建代理
-  if (_customProxy) { _localProxyOk = false; }
   applyFontFamily();
   // 立即应用字号到 paper
   document.getElementById('paperArea')?.style.setProperty('font-size', fontSize + 'px');
@@ -8145,13 +8143,13 @@ async function checkLocalProxy() {
 
 function getProxyList() {
   const proxies = [];
-  // 1. 用户自建 Cloudflare Worker 代理（最可靠）
-  if (_customProxy) {
-    proxies.push(_customProxy + '?url=');
-  }
-  // 2. 本地 server.py 代理（运行 python server.py 时可用）
+  // 1. SW 内置代理（同源中转，无 CORS 问题）—— 始终优先
   if (_localProxyOk !== false) {
     proxies.push('./proxy?url=');
+  }
+  // 2. 用户自建 Cloudflare Worker 代理（需 VPN 才能访问 workers.dev）
+  if (_customProxy) {
+    proxies.push(_customProxy + '?url=');
   }
   return proxies;
 }
