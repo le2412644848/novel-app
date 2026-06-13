@@ -7752,9 +7752,12 @@ async function searchOnlineNovels() {
 }
 
 // 打开搜索结果中的书籍 → 获取章节目录
+let _selectedOnlineBook = null;
+
 async function openOnlineBook(idx) {
   if (!_onlineBookData || idx >= _onlineBookData.length) return;
   const book = _onlineBookData[idx];
+  _selectedOnlineBook = book;
   _currentOnlineSource = BOOK_SOURCES.find(s => s.baseUrl === book.sourceKey) || BOOK_SOURCES[0];
   closeModal('onlineSearchModal');
 
@@ -7881,7 +7884,7 @@ async function readOnlineChapter(idx) {
 // 加入书架并下载全部章节
 async function addOnlineBookToShelf() {
   if (_onlineChapters.length === 0) { showToast('无章节可下载'); return; }
-  const title = _onlineBookData ? _onlineBookData[0].title : '在线书籍';
+  const title = _selectedOnlineBook ? _selectedOnlineBook.title : (_onlineBookData ? _onlineBookData[0].title : '在线书籍');
   const src = _currentOnlineSource || BOOK_SOURCES[0];
   const bookId = Date.now().toString(36);
   const newBook = {
