@@ -2150,11 +2150,17 @@ body::before {
 <div class="modal-overlay" id="onlineSearchModal">
   <div class="modal" style="max-width:500px;">
     <h2>🔍 在线搜书</h2>
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;margin-bottom:6px;">
       <input type="text" id="onlineSearchInput" placeholder="输入书名或作者..." onkeydown="if(event.key==='Enter')searchOnlineNovels()" style="flex:1;">
       <button class="btn btn-primary" onclick="searchOnlineNovels()" style="width:auto;flex-shrink:0;">搜索</button>
     </div>
-    <div id="onlineSearchResults" style="max-height:55vh;overflow-y:auto;"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--text2);">
+      <span>搜索模式：</span>
+      <button class="tag-chip active" id="searchModeFuzzy" onclick="setSearchMode('fuzzy')">模糊搜索</button>
+      <button class="tag-chip" id="searchModeExact" onclick="setSearchMode('exact')">精确搜索</button>
+      <span style="margin-left:auto;font-size:10px;color:var(--text3);" id="searchSourceInfo">多书源</span>
+    </div>
+    <div id="onlineSearchResults" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="btn-group" style="margin-top:10px;">
       <button class="btn btn-secondary" onclick="closeModal('onlineSearchModal')">关闭</button>
     </div>
@@ -6237,12 +6243,25 @@ const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
   'https://corsproxy.io/?'
 ];
-let _onlineBookData = null; // 当前选中的在线书籍数据
-let _onlineChapters = []; // 章节列表缓存
+// 多书源：搜索URL模板，{query}会被替换为搜索词
+const BOOK_SOURCES = [
+  { name: '笔趣格', searchUrl: 'https://www.ibiquge.com/search/?keyword={query}', baseUrl: 'https://www.ibiquge.com' },
+  { name: '全本小说', searchUrl: 'https://www.quanben.io/search?keyword={query}', baseUrl: 'https://www.quanben.io' }
+];
+let _onlineBookData = null;
+let _onlineChapters = [];
+let _searchMode = 'fuzzy'; // 'fuzzy' | 'exact'
+
+function setSearchMode(mode) {
+  _searchMode = mode;
+  document.getElementById('searchModeFuzzy').classList.toggle('active', mode === 'fuzzy');
+  document.getElementById('searchModeExact').classList.toggle('active', mode === 'exact');
+}
 
 function showOnlineSearch() {
   document.getElementById('onlineSearchInput').value = '';
   document.getElementById('onlineSearchResults').innerHTML = '<p style="text-align:center;color:var(--text3);padding:20px;">输入书名搜索在线书源</p>';
+  setSearchMode('fuzzy');
   showModal('onlineSearchModal');
 }
 
@@ -6261,50 +6280,83 @@ async function fetchWithCORS(url, idx) {
   }
 }
 
+// 规范化书名用于精确比对：去空格、去标点、全角半角统一
+function normalizeTitle(t) {
+  return t.replace(/[\s，。！？、；：""''（）《》·\.\,\!\?\;\:\"\'\(\)\[\]\{\}<>\/\\@#$%^&\*\+=\~`\|-]/g, '')
+    .replace(/！/g, '!').replace(/？/g, '?').toLowerCase();
+}
+
 async function searchOnlineNovels() {
   const query = document.getElementById('onlineSearchInput').value.trim();
   if (!query) { showToast('请输入搜索关键词'); return; }
   const resultsEl = document.getElementById('onlineSearchResults');
+  const sourceInfo = document.getElementById('searchSourceInfo');
   resultsEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><p style="margin-top:10px;color:var(--text2);">搜索中...</p></div>';
-  try {
-    // 使用搜书网站搜索
-    const searchUrl = 'https://www.ibiquge.com/search/?keyword=' + encodeURIComponent(query);
-    const html = await fetchWithCORS(searchUrl, 0);
-    // 解析搜索结果
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const items = doc.querySelectorAll('.result-item, .bookbox, li, [class*="item"]');
-    const results = [];
-    items.forEach(item => {
-      const link = item.querySelector('a[href]');
-      if (!link) return;
-      const title = link.textContent.trim();
-      const href = link.getAttribute('href');
-      if (!title || !href || title.length < 2 || title.length > 50) return;
-      const authorEl = item.querySelector('[class*="author"], .author, span');
-      const author = authorEl ? authorEl.textContent.replace(/作者[：:]?\s*/,'').trim() : '';
-      const descEl = item.querySelector('[class*="desc"], .desc, p');
-      const desc = descEl ? descEl.textContent.trim().substring(0, 100) : '';
-      results.push({ title, author, desc, url: href.startsWith('http') ? href : 'https://www.ibiquge.com' + href });
-    });
-    if (results.length === 0) {
-      resultsEl.innerHTML = '<p style="text-align:center;color:var(--text3);padding:20px;">未找到结果，试试其他关键词</p>';
-      return;
+  const allResults = [];
+  const normQuery = normalizeTitle(query);
+
+  // 依次尝试各书源
+  for (const src of BOOK_SOURCES) {
+    try {
+      sourceInfo.textContent = '正在搜索：' + src.name + '...';
+      const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
+      const html = await fetchWithCORS(searchUrl, 0);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const items = doc.querySelectorAll('.result-item, .bookbox, li, [class*="item"], [class*="book"]');
+      let srcCount = 0;
+      items.forEach(item => {
+        const link = item.querySelector('a[href]');
+        if (!link) return;
+        const title = link.textContent.trim();
+        const href = link.getAttribute('href');
+        if (!title || !href || title.length < 2 || title.length > 60) return;
+        // 精确模式：标题必须匹配
+        if (_searchMode === 'exact') {
+          if (normalizeTitle(title) !== normQuery) return;
+        }
+        const authorEl = item.querySelector('[class*="author"], .author, span');
+        const author = authorEl ? authorEl.textContent.replace(/作者[：:]?\s*/,'').trim() : '';
+        const descEl = item.querySelector('[class*="desc"], .desc, p');
+        const desc = descEl ? descEl.textContent.trim().substring(0, 100) : '';
+        const fullUrl = href.startsWith('http') ? href : src.baseUrl + href;
+        allResults.push({ title, author, desc, url: fullUrl, source: src.name });
+        srcCount++;
+      });
+      sourceInfo.textContent = src.name + '：' + srcCount + '条';
+    } catch(e) {
+      sourceInfo.textContent = src.name + '：失败';
     }
-    _onlineBookData = results;
-    resultsEl.innerHTML = results.slice(0, 20).map((r, i) => {
-      const colorIdx = i % 12;
-      return '<div class="online-search-card" onclick="openOnlineBook(' + i + ')">' +
-        '<div class="os-cover" style="background:' + COVER_GRADIENTS[colorIdx] + ';">' + esc(r.title).charAt(0) + '</div>' +
-        '<div class="os-info">' +
-          '<div class="os-title">' + esc(r.title) + '</div>' +
-          (r.author ? '<div class="os-author">' + esc(r.author) + '</div>' : '') +
-          (r.desc ? '<div class="os-desc">' + esc(r.desc) + '</div>' : '') +
-        '</div></div>';
-    }).join('');
-  } catch(e) {
-    resultsEl.innerHTML = '<p style="text-align:center;color:var(--danger);padding:20px;">搜索失败：' + esc(e.message) + '<br><small>请检查网络连接后重试</small></p>';
   }
+
+  if (allResults.length === 0) {
+    const hint = _searchMode === 'exact' ? '精确搜索无结果，试试模糊搜索？' : '未找到结果，试试其他关键词';
+    resultsEl.innerHTML = '<p style="text-align:center;color:var(--text3);padding:20px;">' + hint + '</p>';
+    sourceInfo.textContent = '无结果';
+    return;
+  }
+
+  // 去重（按URL）
+  const seen = new Set();
+  const deduped = allResults.filter(r => {
+    if (seen.has(r.url)) return false;
+    seen.add(r.url);
+    return true;
+  });
+
+  sourceInfo.textContent = '共' + deduped.length + '条 · ' + (_searchMode === 'exact' ? '精确' : '模糊');
+  _onlineBookData = deduped;
+  resultsEl.innerHTML = deduped.slice(0, 30).map((r, i) => {
+    const colorIdx = i % 12;
+    return '<div class="online-search-card" onclick="openOnlineBook(' + i + ')">' +
+      '<div class="os-cover" style="background:' + COVER_GRADIENTS[colorIdx] + ';">' + esc(r.title).charAt(0) + '</div>' +
+      '<div class="os-info">' +
+        '<div class="os-title">' + esc(r.title) + '</div>' +
+        (r.author ? '<div class="os-author">' + esc(r.author) + '</div>' : '') +
+        '<div class="os-latest">来源：' + esc(r.source) + '</div>' +
+        (r.desc ? '<div class="os-desc">' + esc(r.desc) + '</div>' : '') +
+      '</div></div>';
+  }).join('');
 }
 
 async function openOnlineBook(idx) {
