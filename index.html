@@ -5233,8 +5233,6 @@ function doImportChapterFromShelf(bookIdx, chapterIdx) {
   showToast('✅ 已导入：' + newCh.title);
 }
 
-</script>
-
 document.addEventListener('click', function(e) {
   if (!e.target.closest('.shelf-more-menu') && !e.target.closest('.mini-btn')) {
     removeAllShelfMenus();
