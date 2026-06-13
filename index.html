@@ -2085,7 +2085,7 @@ body::before {
       </div>
     </div>
 
-    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614b · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
+    <div style="text-align:center;font-size:10px;color:var(--text3);margin:8px 0;">版本 250614c · <a href="javascript:clearSiteCache()" style="color:var(--accent);">清除缓存</a></div>
 
     <div class="btn-group">
       <button class="btn btn-secondary" onclick="closeModal('settingsModal')">取消</button>
@@ -4611,11 +4611,14 @@ function exportNovelMd() {
   // 注册 Service Worker（网络优先，离线回退缓存）
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.getRegistrations()
-        .then(regs => Promise.all(regs.map(r => r.unregister())))
-        .then(() => navigator.serviceWorker.register('./sw.js', { scope: './' }))
-        .then(reg => console.log('✅ SW 注册成功, scope:', reg.scope))
-        .catch(err => console.warn('⚠️ SW 操作失败:', err.message));
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .then(reg => {
+          console.log('✅ SW 注册成功, scope:', reg.scope);
+          navigator.serviceWorker.ready.then(() => {
+            setTimeout(checkLocalProxy, 300);
+          });
+        })
+        .catch(err => console.warn('⚠️ SW 注册失败:', err.message));
     });
   } else {
     console.warn('⚠️ 浏览器不支持 Service Worker');
@@ -8380,7 +8383,7 @@ async function fetchWithCORS(url, _unused, options) {
 setTimeout(function() {
   if (typeof updateGoalRing === 'function') updateGoalRing();
   if (typeof enablePullToRefresh === 'function') enablePullToRefresh('novelList');
-  checkLocalProxy(); // 快速检测本地代理是否可用
+  // checkLocalProxy 已移至 SW.ready 后调用（见上方 SW 注册）
 }, 500);
 
 </script>
