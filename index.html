@@ -7654,7 +7654,16 @@ const BOOK_SOURCES = [
     chapterSel: '#list dd a, .chapter dd a, dd a', contentSel: '#content, .article' },
   { name: '69书吧', baseUrl: 'https://www.69shuba.com', searchUrl: 'https://www.69shuba.com/search?keyword={query}',
     itemSel: '.result-list li, .novelslist2 li, .library li, .search-list li', titleSel: 'a', authorSel: '.author, .s5',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' }
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' },
+  { name: '爱丽丝书屋', baseUrl: 'https://www.alicesw.com', searchUrl: 'https://www.alicesw.com/search.html?q={query}&f=_all',
+    itemSel: '.list-group-item', titleSel: 'h5 a', authorSel: 'p.text-muted a',
+    chapterSel: 'li a', contentSel: '#content',
+    chapterListPattern: '/other/chapters/id/$1.html', chapterListRegex: '/novel/(\\d+)\\.html' },
+  { name: '狼人小说', baseUrl: 'https://www.langrenxiaoshuo.com', searchUrl: 'https://www.langrenxiaoshuo.com/s.php?action=search',
+    searchMethod: 'POST', searchBody: 'wd={query}&objectType=2',
+    itemSel: '.txt-list-row5 li', titleSel: '.s2 a', authorSel: '.s4',
+    chapterSel: '.section-list li a, dd a', contentSel: '#content, .content',
+    skip: true }
 ];
 
 let _onlineBookData = null;
@@ -7682,8 +7691,15 @@ async function searchOnlineNovels() {
   for (const src of BOOK_SOURCES) {
     try {
       hintEl.textContent = '搜索中：' + src.name + '...';
-      const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
-      const html = await fetchWithCORS(searchUrl, 0);
+      let html;
+      if (src.searchMethod === 'POST') {
+        const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
+        const searchBody = src.searchBody.replace('{query}', encodeURIComponent(query));
+        html = await fetchWithCORS(searchUrl, 0, { method: 'POST', body: searchBody, contentType: 'application/x-www-form-urlencoded' });
+      } else {
+        const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
+        html = await fetchWithCORS(searchUrl, 0);
+      }
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const items = doc.querySelectorAll(src.itemSel);
@@ -7754,6 +7770,13 @@ async function openOnlineBook(idx) {
   _currentOnlineSource = BOOK_SOURCES.find(s => s.baseUrl === book.sourceKey) || BOOK_SOURCES[0];
   closeModal('onlineSearchModal');
 
+  // 某些书源（如狼人小说）的章节目录由 JS 动态加载，无法通过代理获取
+  if (_currentOnlineSource.skip) {
+    showToast('此源章节目录需浏览器渲染，正在打开原网页...');
+    window.open(book.url, '_blank');
+    return;
+  }
+
   // 弹窗提示章节加载中
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
@@ -7761,10 +7784,19 @@ async function openOnlineBook(idx) {
   document.body.appendChild(overlay);
 
   try {
-    const html = await fetchWithCORS(book.url, 0);
+    const src = _currentOnlineSource;
+    // 如果书源有特殊章节目录 URL 模式，则转换 URL
+    let chapterListUrl = book.url;
+    if (src.chapterListRegex && src.chapterListPattern) {
+      const re = new RegExp(src.chapterListRegex);
+      const match = book.url.match(re);
+      if (match) {
+        chapterListUrl = book.url.replace(re, src.chapterListPattern.replace('$1', match[1]));
+      }
+    }
+    const html = await fetchWithCORS(chapterListUrl, 0);
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-    const src = _currentOnlineSource;
     let chapterLinks = doc.querySelectorAll(src.chapterSel);
     if (chapterLinks.length === 0) {
       chapterLinks = doc.querySelectorAll('#list dd a, .chapterlist dd a, .chapter dd a, dd a');
@@ -7917,6 +7949,11 @@ async function addOnlineBookToShelf() {
 function openSourceSearch(idx) {
   const query = document.getElementById('onlineSearchInput').value.trim();
   const src = BOOK_SOURCES[idx];
+  if (src.searchMethod === 'POST') {
+    window.open(src.baseUrl, '_blank');
+    showToast('已在 ' + src.name + ' 打开（POST搜索需手动输入关键词）');
+    return;
+  }
   const url = query ? src.searchUrl.replace('{query}', encodeURIComponent(query)) : src.baseUrl;
   window.open(url, '_blank');
   showToast('已在 ' + src.name + ' 打开搜索');
@@ -8101,27 +8138,61 @@ function getProxyList() {
   return proxies;
 }
 
-async function fetchWithCORS(url, idx) {
+async function fetchWithCORS(url, idx, options) {
   const proxies = getProxyList();
-  if (idx >= proxies.length) {
-    if (proxies.length === 0) {
-      throw new Error('没有可用的代理。\n\n解决方案：\n1. 在本地运行 python server.py\n2. 或将 proxy-worker.js 部署到 Cloudflare Workers（免费）\n\n部署方法见 proxy-worker.js 文件注释');
+  const isPost = options && options.method === 'POST';
+
+  // 先走代理列表
+  if (idx < proxies.length) {
+    try {
+      let resp;
+      if (isPost) {
+        const proxyUrl = proxies[idx];
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        resp = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, method: 'POST', body: options.body, contentType: options.contentType }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+      } else {
+        const proxyUrl = proxies[idx] + encodeURIComponent(url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        resp = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+      }
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      if (!text || text.length < 100) throw new Error('响应太短（可能被反爬拦截）');
+      return text;
+    } catch(e) {
+      return fetchWithCORS(url, idx + 1, options);
     }
-    throw new Error('所有代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
   }
-  try {
-    const proxyUrl = proxies[idx] + encodeURIComponent(url);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const resp = await fetch(proxyUrl, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const text = await resp.text();
-    if (!text || text.length < 100) throw new Error('响应太短（可能被反爬拦截）');
-    return text;
-  } catch(e) {
-    return fetchWithCORS(url, idx + 1);
+
+  // 代理都失败了 → 尝试直连（可能部分网站允许 CORS）
+  if (proxies.length === 0 && !isPost) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const text = await resp.text();
+        if (text && text.length >= 100) return text;
+      }
+    } catch(e) {
+      // 直连也失败，继续抛错
+    }
   }
+
+  if (proxies.length === 0) {
+    throw new Error('没有可用的代理，且直连被 CORS 阻止。\n\n解决方案：\n1. 在设置中填入 Cloudflare Worker 代理地址\n2. 或在本地运行 python server.py\n\n代理地址：https://my-project.le2412644848.workers.dev');
+  }
+  throw new Error('所有代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
 }
 
 // ===== 延迟初始化（确保所有函数已定义） =====
