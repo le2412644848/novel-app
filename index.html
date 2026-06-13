@@ -4254,7 +4254,6 @@ self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWi
 
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
     deferredPrompt = e;
   });
   window.installApp = function() {
