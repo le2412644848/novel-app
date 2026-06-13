@@ -8127,7 +8127,7 @@ async function importBookFromUrl() {
 // 自建代理：将 proxy-worker.js 部署到 Cloudflare Workers 获得免费 10万次/天代理
 // 部署后把 URL 填入此处或通过设置页面配置
 let _customProxy = '';
-let _localProxyOk = null;
+let _localProxyOk = false;  // SW代理默认关闭，直连优先（多数书源允许CORS）
 
 async function checkLocalProxy() {
   try {
@@ -8143,72 +8143,71 @@ async function checkLocalProxy() {
 
 function getProxyList() {
   const proxies = [];
-  // 1. SW 内置代理（同源中转，无 CORS 问题）—— 始终优先
-  if (_localProxyOk !== false) {
+  // 1. SW 内置代理（同源中转）
+  if (_localProxyOk) {
     proxies.push('./proxy?url=');
   }
-  // 2. 用户自建 Cloudflare Worker 代理（需 VPN 才能访问 workers.dev）
+  // 2. Cloudflare Worker 代理（需 VPN 访问 workers.dev）
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
+  // 3. 公共 CORS 代理兜底
+  proxies.push('https://api.allorigins.win/raw?url=');
   return proxies;
 }
 
-async function fetchWithCORS(url, idx, options) {
-  const proxies = getProxyList();
+async function fetchWithCORS(url, _unused, options) {
   const isPost = options && options.method === 'POST';
 
-  // 先走代理列表
-  if (idx < proxies.length) {
-    try {
-      let resp;
-      if (isPost) {
-        const proxyUrl = proxies[idx];
+  // POST 请求走代理（跨域 POST 会被 CORS 预检阻止）
+  if (isPost) {
+    const proxies = getProxyList();
+    for (let i = 0; i < proxies.length; i++) {
+      try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
-        resp = await fetch(proxyUrl, {
+        const resp = await fetch(proxies[i], {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url, method: 'POST', body: options.body, contentType: options.contentType }),
+          body: JSON.stringify({ url, method: 'POST', body: options.body, contentType: options.contentType }),
           signal: controller.signal
         });
         clearTimeout(timeout);
-      } else {
-        const proxyUrl = proxies[idx] + encodeURIComponent(url);
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        resp = await fetch(proxyUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-      }
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const text = await resp.text();
-      if (!text || text.length < 100) throw new Error('响应太短（可能被反爬拦截）');
-      return text;
-    } catch(e) {
-      return fetchWithCORS(url, idx + 1, options);
-    }
-  }
-
-  // 代理都失败了 → 尝试直连（可能部分网站允许 CORS）
-  if (proxies.length === 0 && !isPost) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (resp.ok) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const text = await resp.text();
         if (text && text.length >= 100) return text;
-      }
-    } catch(e) {
-      // 直连也失败，继续抛错
+      } catch(e) { /* 继续尝试下一个代理 */ }
     }
+    throw new Error('所有代理均不可用');
   }
 
-  if (proxies.length === 0) {
-    throw new Error('没有可用的代理，且直连被 CORS 阻止。\n\n解决方案：\n1. 在设置中填入 Cloudflare Worker 代理地址\n2. 或在本地运行 python server.py\n\n代理地址：https://my-project.le2412644848.workers.dev');
+  // GET: 直连优先（多数书源允许 CORS）
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 15000);
+    const resp = await fetch(url, { signal: c.signal });
+    clearTimeout(t);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (text && text.length >= 100) return text;
+    }
+  } catch(e) { /* 直连失败 → 尝试代理 */ }
+
+  // GET: 代理兜底
+  const proxies = getProxyList();
+  for (let i = 0; i < proxies.length; i++) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 15000);
+      const resp = await fetch(proxies[i] + encodeURIComponent(url), { signal: c.signal });
+      clearTimeout(t);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      if (text && text.length >= 100) return text;
+    } catch(e) { /* 继续尝试下一个代理 */ }
   }
-  throw new Error('所有代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
+
+  throw new Error('直连和代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
 }
 
 // ===== 延迟初始化（确保所有函数已定义） =====
