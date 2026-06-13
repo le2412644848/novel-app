@@ -4086,11 +4086,23 @@ async function exportAllData() {
   try {
     const data = await dbLoad('novelWriterData');
     if (!data) { showToast('❌ 没有数据可导出'); return; }
-    const json = JSON.stringify(data);
-    const novelCount = data.novels?.length || 0;
-    const chCount = data.novels?.reduce((s, n) => s + (n.chapters?.length || 0), 0) || 0;
+    const novelCount = (data.novelsMeta || []).length;
+    // 收集所有小说的body数据
+    const bodies = {};
+    let chCount = 0;
+    for (const m of (data.novelsMeta || [])) {
+      const body = await dbLoad('novel_body_' + m.id);
+      if (body) {
+        // 清理临时字段
+        for (const c of (body.chapters || [])) { delete c._lastAiReply; delete c._lastBibleHash; delete c._lastPrompt; delete c.history; delete c._revisions; }
+        bodies[m.id] = body;
+        chCount += (body.chapters || []).length;
+      }
+    }
+    const exportData = { ...data, _bodies: bodies };
+    const json = JSON.stringify(exportData);
     document.getElementById('backupInfo').textContent = `共 ${novelCount} 篇小说，${chCount} 个章节，数据大小 ${(json.length/1024).toFixed(1)}KB`;
-    // 直接下载文件（不在文本框显示，手机不卡）
+    // 直接下载文件
     const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -4135,25 +4147,77 @@ function showImportPanel() {
   document.getElementById('importData').value = '';
   showModal('importModal');
 }
-function doImport() {
+async function doImport() {
   const text = document.getElementById('importData').value.trim();
   if (!text) { showToast('❌ 请先粘贴备份内容'); return; }
+  let data;
+  try { data = JSON.parse(text); } catch(err) { showToast('❌ 数据解析失败：' + err.message); return; }
+  if (!data.novels && !data.novelsMeta) { showToast('❌ 无效的备份格式（缺少novels或novelsMeta）'); return; }
+  showConfirm('确认导入？当前所有数据将被备份内容替换！', async () => {
+    await doImportData(data);
+  });
+}
+async function doImportData(data) {
   try {
-    const data = JSON.parse(text);
-    if (!data.novels || !Array.isArray(data.novels)) {
-      showToast('❌ 无效的备份格式');
-      return;
-    }
-    showConfirm('确认导入？当前所有数据将被备份内容替换！', () => {
-      const clean = JSON.parse(text);
-      for (const n of clean.novels || []) {
-        for (const c of n.chapters || []) { delete c._lastAiReply; delete c.history; }
+    // 清除旧数据
+    const oldData = await dbLoad('novelWriterData');
+    if (oldData?.novelsMeta) {
+      for (const m of oldData.novelsMeta) {
+        await dbDelete('novel_body_' + m.id);
       }
-      localStorage.setItem('novelWriterData', JSON.stringify(clean));
-      location.reload();
+    }
+    // 处理旧格式（novels数组含chapters）→ 转换为新格式
+    let novelsMeta;
+    if (data.novels && !data.novelsMeta) {
+      // 旧格式：每个novel里直接有chapters
+      novelsMeta = [];
+      for (const n of data.novels) {
+        const nid = n.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        for (const c of n.chapters || []) { delete c._lastAiReply; delete c.history; }
+        const body = {
+          chapters: n.chapters || [],
+          bible: n.bible || {},
+          characters: n.characters || [],
+          _tags: n._tags,
+          _readingProgress: n._readingProgress || n.readingProgress || 0
+        };
+        await dbSave('novel_body_' + nid, body);
+        novelsMeta.push({
+          id: nid, title: n.title || '未命名', style: n.style || '古风',
+          coverColor: n.coverColor || COVER_GRADIENTS[0],
+          createdAt: n.createdAt || new Date().toISOString(),
+          readingProgress: n.readingProgress || 0,
+          chapterCount: (n.chapters || []).length,
+          doneCount: (n.chapters || []).filter(c => (c.content || '').length > 100).length,
+          wordCount: (n.chapters || []).reduce((s, c) => s + countChinese(c.content || ''), 0),
+          tokenCount: (n.chapters || []).reduce((s, c) => s + (c.tokens || 0), 0),
+          costCount: (n.chapters || []).reduce((s, c) => s + (c.cost || 0), 0),
+          hasBible: !!(n.bible && (n.bible.synopsis || n.bible.characters)),
+        });
+      }
+    } else {
+      // 新格式：novelsMeta + 单独的novel_body_*
+      novelsMeta = data.novelsMeta || [];
+      // 导入novel_body数据
+      if (data._bodies) {
+        for (const [id, body] of Object.entries(data._bodies)) {
+          await dbSave('novel_body_' + id, body);
+        }
+      }
+    }
+    await dbSave('novelWriterData', {
+      novelsMeta,
+      currentModel: data.currentModel, customPrompt: data.customPrompt,
+      chapterWordTarget: data.chapterWordTarget, temperature: data.temperature,
+      aiColor: data.aiColor, contentColor: data.contentColor, fontSize: data.fontSize,
+      totalTokensUsed: data.totalTokensUsed || 0, totalTokensCost: data.totalTokensCost || 0,
+      importedBooks: data.importedBooks || [],
+      readerSkin: data.readerSkin, readerFontSize: data.readerFontSize,
+      readerLineHeight: data.readerLineHeight, readerBrightness: data.readerBrightness
     });
+    location.reload();
   } catch(err) {
-    showToast('❌ 数据解析失败：' + err.message);
+    showToast('❌ 导入失败：' + err.message);
   }
 }
 function importAllData(event) {
@@ -4161,19 +4225,15 @@ function importAllData(event) {
   if (!file) return;
   closeModal('importModal');
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.novels || !Array.isArray(data.novels)) {
-        showToast('❌ 无效的备份文件');
+      if (!data.novels && !data.novelsMeta) {
+        showToast('❌ 无效的备份文件（缺少novels或novelsMeta）');
         return;
       }
-      showConfirm('确认导入？当前所有数据将被备份文件替换！', () => {
-        for (const n of data.novels || []) {
-          for (const c of n.chapters || []) { delete c._lastAiReply; delete c.history; }
-        }
-        localStorage.setItem('novelWriterData', JSON.stringify(data));
-        location.reload();
+      showConfirm('确认导入？当前所有数据将被备份文件替换！', async () => {
+        await doImportData(data);
       });
     } catch(err) {
       showToast('❌ 文件解析失败：' + err.message);
