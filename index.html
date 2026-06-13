@@ -7643,18 +7643,6 @@ function openCharDialogue() {
 // ===== 在线书源搜索 =====
 // 验证过的免费书源（无付费墙，无需登录）
 const BOOK_SOURCES = [
-  { name: '新笔趣阁', baseUrl: 'https://www.xbiquge.la', searchUrl: 'https://www.xbiquge.la/search.php?keyword={query}',
-    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
-  { name: '笔趣阁U', baseUrl: 'https://www.biqugeu.net', searchUrl: 'https://www.biqugeu.net/search.php?keyword={query}',
-    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
-  { name: '爱下电子书', baseUrl: 'https://www.ixdzs8.com', searchUrl: 'https://www.ixdzs8.com/search?keyword={query}',
-    itemSel: '.result-list li, .search-list li, li', titleSel: 'a', authorSel: '.author, span',
-    chapterSel: '#list dd a, .chapter dd a, dd a', contentSel: '#content, .article' },
-  { name: '69书吧', baseUrl: 'https://www.69shuba.com', searchUrl: 'https://www.69shuba.com/search?keyword={query}',
-    itemSel: '.result-list li, .novelslist2 li, .library li, .search-list li', titleSel: 'a', authorSel: '.author, .s5',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' },
   { name: '爱丽丝书屋', baseUrl: 'https://www.alicesw.com', searchUrl: 'https://www.alicesw.com/search.html?q={query}&f=_all',
     itemSel: '.list-group-item', titleSel: 'h5 a', authorSel: 'p.text-muted a',
     chapterSel: 'li a', contentSel: '#content',
