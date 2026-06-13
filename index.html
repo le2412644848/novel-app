@@ -7875,9 +7875,10 @@ async function readOnlineChapter(idx) {
     }
     content = content.replace(/\n{3,}/g, '\n\n').replace(/[\t ]{2,}/g, ' ');
 
+    const bookTitle = _selectedOnlineBook ? _selectedOnlineBook.title : ch.title;
     const tempBook = {
-      id: 'online_' + Date.now(), title: ch.title,
-      author: '在线书源', source: '在线',
+      id: 'online_' + Date.now(), title: bookTitle,
+      author: _selectedOnlineBook ? (_selectedOnlineBook.author || '在线书源') : '在线书源', source: '在线',
       coverColor: COVER_GRADIENTS[0],
       chapters: _onlineChapters.map(c => ({ title: c.title, content: c.title + '\n\n' })),
       currentPosition: { chapterIndex: idx, scrollPercent: 0 },
