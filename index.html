@@ -526,6 +526,9 @@ body::before {
   font-weight: 600;
 }
 .style-tags .tag-btn:active { transform: scale(.93); transition: transform .06s ease; }
+/* 大纲聊天 */
+#outlineChatHistory .spinner { width: 16px; height: 16px; border-width: 2px; flex-shrink: 0; }
+#outlineChatInput { transition: height .1s ease; }
 .confirm-overlay {
   display: none;
   position: fixed;
@@ -2261,33 +2264,47 @@ body::before {
   </div>
 </div>
 
-<!-- ===== AI 定制大纲弹窗 ===== -->
+<!-- ===== AI 定制大纲弹窗（聊天模式） ===== -->
 <div class="modal-overlay" id="aiOutlineModal">
-  <div class="modal" style="max-width:480px;">
-    <h2>✨ AI 定制大纲</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
-      告诉 AI 你想要什么故事，它会为你生成一份详细的章节大纲，大纲可自动填入新小说的故事设定中。
+  <div class="modal" style="max-width:520px;display:flex;flex-direction:column;max-height:85vh;">
+    <h2>💬 AI 大纲聊天</h2>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;line-height:1.5;">
+      描述你想要的故事，AI 生成大纲后你可以继续提修改意见，反复打磨直到满意。
     </p>
-    <label>📖 小说风格</label>
-    <div class="style-tags" id="outlineStyleTags">
-      <button class="tag-btn selected" data-style="古风">古风</button>
-      <button class="tag-btn" data-style="现代">现代</button>
-      <button class="tag-btn" data-style="奇幻">奇幻</button>
-      <button class="tag-btn" data-style="悬疑">悬疑</button>
-      <button class="tag-btn" data-style="科幻">科幻</button>
-      <button class="tag-btn" data-style="武侠">武侠</button>
-      <button class="tag-btn" data-style="言情">言情</button>
+    <div style="display:flex;gap:12px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:12px;color:var(--text2);">风格:</span>
+        <div class="style-tags" id="outlineStyleTags" style="margin-bottom:0;">
+          <button class="tag-btn selected" data-style="古风">古风</button>
+          <button class="tag-btn" data-style="现代">现代</button>
+          <button class="tag-btn" data-style="奇幻">奇幻</button>
+          <button class="tag-btn" data-style="悬疑">悬疑</button>
+          <button class="tag-btn" data-style="科幻">科幻</button>
+          <button class="tag-btn" data-style="武侠">武侠</button>
+          <button class="tag-btn" data-style="言情">言情</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-size:12px;color:var(--text2);">章数:</span>
+        <input type="number" id="outlineChapterCount" value="10" min="5" max="50" step="1" style="width:56px;padding:4px 6px;font-size:13px;">
+      </div>
     </div>
-    <label>📝 你的需求描述</label>
-    <textarea id="outlineRequirement" rows="5" placeholder="例如：&#10;一部关于修仙的小说，女主是被逐出师门的废柴，意外得到上古传承后逆袭。要有师徒恋、门派争斗、秘境探险等元素。大约写20章，每章3000字左右。结局是女主成为仙界第一人，但发现更大的阴谋…" style="width:100%;min-height:120px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:12px;font-family:inherit;font-size:14px;resize:vertical;"></textarea>
-    <label>📏 大纲章数</label>
-    <input type="number" id="outlineChapterCount" value="10" min="5" max="50" step="1">
-    <div id="aiOutlineResult" style="margin-top:12px;display:none;"></div>
-    <div class="btn-group" style="margin-top:10px;">
-      <button class="btn btn-secondary" onclick="closeModal('aiOutlineModal')">取消</button>
-      <button class="btn btn-primary" onclick="generateAiOutline()" id="aiOutlineBtn" style="background:linear-gradient(135deg,var(--accent2),var(--accent));">✨ 生成大纲</button>
+    <!-- 聊天历史 -->
+    <div id="outlineChatHistory" style="flex:1;overflow-y:auto;max-height:45vh;min-height:150px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;">
+      <div id="outlineChatPlaceholder" style="text-align:center;color:var(--text3);padding:20px;font-size:13px;line-height:1.6;">
+        💡 在下方描述你想要的故事情节<br>例如：「一部修仙小说，女主是废柴逆袭，要有师徒恋和门派斗争」
+      </div>
     </div>
-    <button class="btn btn-secondary" id="aiOutlineUseBtn" onclick="useAiOutline()" style="width:100%;margin-top:8px;display:none;">✅ 使用此大纲创建小说</button>
+    <!-- 输入区 -->
+    <div style="display:flex;gap:8px;">
+      <textarea id="outlineChatInput" rows="2" placeholder="描述需求或提出修改意见…" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px;resize:none;min-height:44px;"></textarea>
+      <button class="btn btn-primary" onclick="sendOutlineMessage()" id="outlineSendBtn" style="width:auto;flex-shrink:0;padding:10px 18px;font-size:14px;">💬 发送</button>
+    </div>
+    <div class="btn-group" style="margin-top:8px;">
+      <button class="btn btn-secondary" onclick="closeOutlineChat()">关闭</button>
+      <button class="btn btn-secondary" id="outlineClearBtn" onclick="clearOutlineChat()">🔄 重新开始</button>
+      <button class="btn btn-primary" id="aiOutlineUseBtn" onclick="useAiOutline()" style="display:none;background:linear-gradient(135deg,var(--accent2),var(--accent));">✅ 使用此大纲</button>
+    </div>
   </div>
 </div>
 
@@ -5938,9 +5955,11 @@ function showStats() {
   setTimeout(checkOrientation, 1500);
 })();
 
-// ===== AI 定制大纲生成 =====
+// ===== AI 定制大纲生成（聊天模式） =====
+let _outlineChatHistory = []; // { role: 'user'|'assistant', content }
 let _lastGeneratedOutline = '';
 let _lastGeneratedStyle = '';
+let _outlineIsGenerating = false;
 
 // 大纲风格标签点击
 document.getElementById('outlineStyleTags')?.addEventListener('click', e => {
@@ -5951,45 +5970,120 @@ document.getElementById('outlineStyleTags')?.addEventListener('click', e => {
 });
 
 function showAiOutlineModal() {
-  document.getElementById('outlineRequirement').value = '';
-  document.getElementById('outlineChapterCount').value = 10;
-  document.getElementById('aiOutlineResult').style.display = 'none';
-  document.getElementById('aiOutlineUseBtn').style.display = 'none';
-  document.getElementById('aiOutlineBtn').disabled = false;
-  document.getElementById('aiOutlineBtn').textContent = '✨ 生成大纲';
+  _outlineChatHistory = [];
   _lastGeneratedOutline = '';
   _lastGeneratedStyle = '';
+  document.getElementById('outlineChapterCount').value = 10;
+  document.getElementById('outlineChatInput').value = '';
+  document.getElementById('aiOutlineUseBtn').style.display = 'none';
+  document.getElementById('outlineChatHistory').innerHTML =
+    '<div id="outlineChatPlaceholder" style="text-align:center;color:var(--text3);padding:20px;font-size:13px;line-height:1.6;">💡 在下方描述你想要的故事情节<br>例如：「一部修仙小说，女主是废柴逆袭，要有师徒恋和门派斗争」</div>';
   showModal('aiOutlineModal');
+  setTimeout(() => document.getElementById('outlineChatInput').focus(), 300);
 }
 
-async function generateAiOutline() {
-  const requirement = document.getElementById('outlineRequirement').value.trim();
-  if (!requirement) { showToast('请描述你想要的故事'); return; }
+function closeOutlineChat() {
+  if (_outlineIsGenerating) { showToast('正在生成中，请稍候…'); return; }
+  closeModal('aiOutlineModal');
+}
 
-  const chapterCount = parseInt(document.getElementById('outlineChapterCount').value) || 10;
+function clearOutlineChat() {
+  if (_outlineIsGenerating) return;
+  _outlineChatHistory = [];
+  _lastGeneratedOutline = '';
+  document.getElementById('outlineChatInput').value = '';
+  document.getElementById('aiOutlineUseBtn').style.display = 'none';
+  document.getElementById('outlineChatHistory').innerHTML =
+    '<div id="outlineChatPlaceholder" style="text-align:center;color:var(--text3);padding:20px;font-size:13px;line-height:1.6;">💡 已清空，请重新描述需求</div>';
+  showToast('已清空聊天记录');
+}
+
+// 回车发送（Shift+Enter换行）
+document.getElementById('outlineChatInput')?.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendOutlineMessage();
+  }
+});
+// textarea自动撑高
+document.getElementById('outlineChatInput')?.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(120, this.scrollHeight) + 'px';
+});
+
+function renderOutlineChat() {
+  const el = document.getElementById('outlineChatHistory');
+  if (_outlineChatHistory.length === 0) {
+    el.innerHTML = '<div id="outlineChatPlaceholder" style="text-align:center;color:var(--text3);padding:20px;font-size:13px;line-height:1.6;">💡 在下方描述你想要的故事情节<br>例如：「一部修仙小说，女主是废柴逆袭，要有师徒恋和门派斗争」</div>';
+    return;
+  }
+  el.innerHTML = _outlineChatHistory.map(m => {
+    const isUser = m.role === 'user';
+    return '<div style="margin-bottom:12px;' + (isUser ? '' : 'background:var(--card);border-left:3px solid var(--accent2);padding:10px 12px;border-radius:0 8px 8px 0;') + '">' +
+      '<div style="font-size:11px;color:' + (isUser ? 'var(--accent)' : 'var(--accent2)') + ';margin-bottom:4px;font-weight:600;">' +
+      (isUser ? '👤 你' : '🤖 AI 大纲') + '</div>' +
+      '<div style="font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;">' + esc(m.content) + '</div>' +
+      '</div>';
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendOutlineMessage() {
+  const input = document.getElementById('outlineChatInput');
+  const msg = input.value.trim();
+  if (!msg || _outlineIsGenerating) return;
+  input.value = '';
+  input.style.height = 'auto';
+
   const sel = document.querySelector('#outlineStyleTags .tag-btn.selected');
   const style = sel ? sel.dataset.style : '古风';
+  const chapterCount = parseInt(document.getElementById('outlineChapterCount').value) || 10;
+  _lastGeneratedStyle = style;
 
-  const btn = document.getElementById('aiOutlineBtn');
+  // 添加用户消息
+  _outlineChatHistory.push({ role: 'user', content: msg });
+  // 清除placeholder
+  const placeholder = document.getElementById('outlineChatPlaceholder');
+  if (placeholder) placeholder.remove();
+  renderOutlineChat();
+
+  // 添加加载占位
+  const loadingDiv = document.createElement('div');
+  loadingDiv.id = 'outlineLoadingMsg';
+  loadingDiv.innerHTML = '<div style="margin-bottom:12px;background:var(--card);border-left:3px solid var(--accent2);padding:10px 12px;border-radius:0 8px 8px 0;"><div style="font-size:11px;color:var(--accent2);margin-bottom:4px;font-weight:600;">🤖 AI 大纲</div><div style="display:flex;align-items:center;gap:8px;color:var(--text3);font-size:13px;"><div class="spinner"></div>' + (_outlineChatHistory.length === 1 ? '正在生成大纲…' : '正在根据反馈修改…') + '</div></div>';
+  document.getElementById('outlineChatHistory').appendChild(loadingDiv);
+  document.getElementById('outlineChatHistory').scrollTop = document.getElementById('outlineChatHistory').scrollHeight;
+
+  _outlineIsGenerating = true;
+  const btn = document.getElementById('outlineSendBtn');
   btn.disabled = true;
-  btn.textContent = '⏳ 生成中…';
-
-  const resultEl = document.getElementById('aiOutlineResult');
-  resultEl.style.display = 'block';
-  resultEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);"><div class="spinner" style="margin:0 auto 10px;"></div>正在生成大纲，约 15-30 秒…</div>';
+  btn.textContent = '⏳';
 
   try {
-    const prompt = '你是一位资深小说编辑。根据以下需求，为一部' + style + '风格的小说生成' + chapterCount + '章的详细章节大纲。\n\n【用户需求】\n' + requirement + '\n\n【要求】\n1. 每章用一句话概括核心剧情（50-100字）\n2. 章节之间要有因果连贯性、起承转合\n3. 考虑人物弧光和剧情推进\n4. 格式：每行一个章节，如"第一章：标题——剧情概要"\n5. 只输出大纲，不要多余的解释\n6. 严格输出' + chapterCount + '章';
+    // 构建消息列表
+    const systemMsg = { role: 'system', content: '你是一位资深小说编辑。你的任务是与用户协作，为一部' + style + '风格的小说设计' + chapterCount + '章的详细章节大纲。\n\n【要求】\n1. 每章用一句话概括核心剧情（50-100字），格式如"第一章：标题——剧情概要"\n2. 章节之间要有因果连贯性、起承转合\n3. 考虑人物弧光和剧情推进\n4. 严格输出' + chapterCount + '章完整大纲\n5. 如果用户对大纲提出修改意见，请根据反馈重新生成完整大纲\n6. 只输出大纲正文，不要多余解释' };
+
+    const messages = [systemMsg];
+    // 如果是第一条消息，直接使用
+    if (_outlineChatHistory.length === 1) {
+      messages.push({ role: 'user', content: '请根据以下需求生成大纲：\n' + msg });
+    } else {
+      // 多轮对话：把最近几轮加上
+      const recent = _outlineChatHistory.slice(-6);
+      for (const m of recent) {
+        messages.push(m);
+      }
+    }
 
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-      body: JSON.stringify({ model: MODELS[currentModel], messages: [{ role: 'system', content: '你是一位专业的小说编辑，擅长规划章节结构。' }, { role: 'user', content: prompt }], max_tokens: 3000, temperature: 0.8 })
+      body: JSON.stringify({ model: MODELS[currentModel], messages, max_tokens: 4000, temperature: 0.8 })
     });
 
     if (!res.ok) throw new Error('API ' + res.status);
     const d = await res.json();
-    const outline = d.choices?.[0]?.message?.content || '';
+    const reply = d.choices?.[0]?.message?.content || '';
     if (d.usage) {
       const u = d.usage;
       totalTokensUsed += u.total_tokens || 0;
@@ -6001,17 +6095,26 @@ async function generateAiOutline() {
       sessionApiCalls++;
     }
 
-    _lastGeneratedOutline = outline;
-    _lastGeneratedStyle = style;
+    _outlineChatHistory.push({ role: 'assistant', content: reply });
+    _lastGeneratedOutline = reply;
 
-    resultEl.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-bottom:4px;">📋 生成的大纲（创建小说后可在故事设定中编辑）</div><pre style="white-space:pre-wrap;font-size:13px;line-height:1.7;background:var(--bg2);padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;margin:0;">' + esc(outline) + '</pre>';
+    // 移除加载占位
+    const ld = document.getElementById('outlineLoadingMsg');
+    if (ld) ld.remove();
+    renderOutlineChat();
     document.getElementById('aiOutlineUseBtn').style.display = '';
-    showToast('✅ 大纲已生成');
+    showToast('✅ 大纲已生成，可继续提修改意见');
   } catch(err) {
-    resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">❌ ' + esc(err.message) + '</div>';
+    const ld = document.getElementById('outlineLoadingMsg');
+    if (ld) ld.remove();
+    _outlineChatHistory.push({ role: 'assistant', content: '❌ 错误：' + err.message + '\n\n请重试或修改你的描述。' });
+    renderOutlineChat();
+    showToast('❌ ' + err.message);
   } finally {
+    _outlineIsGenerating = false;
     btn.disabled = false;
-    btn.textContent = '✨ 生成大纲';
+    btn.textContent = '💬 发送';
+    document.getElementById('outlineChatInput').focus();
   }
 }
 
