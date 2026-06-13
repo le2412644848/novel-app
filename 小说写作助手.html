@@ -828,6 +828,102 @@ body::before {
   color: var(--text);
 }
 .reader-content p { text-indent: 2em; margin-bottom: 0.6em; }
+/* 分页模式 */
+.reader-content.paged {
+  overflow: hidden;
+  position: relative;
+}
+.reader-page {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+  transition: transform .3s ease;
+}
+.reader-page-indicator {
+  position: fixed;
+  bottom: 50px;
+  right: 16px;
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 10;
+}
+/* TOC 侧边栏 */
+.toc-sidebar {
+  position: fixed;
+  top: 0; right: -85vw; bottom: 0;
+  width: 85vw; max-width: 360px;
+  background: var(--bg);
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  transition: right .25s ease;
+  box-shadow: -4px 0 20px rgba(0,0,0,.3);
+}
+.toc-sidebar.open { right: 0; }
+.toc-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.toc-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.toc-sidebar-item {
+  padding: 10px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  color: var(--text2);
+}
+.toc-sidebar-item.current {
+  border-left-color: var(--accent2);
+  color: var(--text);
+  font-weight: 600;
+  background: var(--bg2);
+}
+.toc-sidebar-item .toc-wordcount {
+  font-size: 11px;
+  color: var(--text3);
+  margin-left: 8px;
+}
+/* 书内搜索 */
+.inbook-search-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.inbook-search-bar input {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.inbook-search-results {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text2);
+  border-bottom: 1px solid var(--border);
+}
+.inbook-search-hit {
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text2);
+}
+.inbook-search-hit:hover { background: var(--bg2); }
+.inbook-search-hit mark { background: rgba(240,168,64,.3); color: var(--text); }
 .reader-header {
   display: flex;
   align-items: center;
@@ -1825,6 +1921,20 @@ body::before {
 
     <div class="setting-group">
       <div class="group-header open" onclick="toggleGroup(this)">
+        <span class="toggle-icon">▶</span> 🔗 代理设置
+      </div>
+      <div class="group-body open">
+        <label>CORS 代理地址（自建，免费）</label>
+        <input type="text" id="settingsCustomProxy" placeholder="例: https://novel-proxy.你的用户名.workers.dev" style="width:100%;font-size:13px;">
+        <p style="font-size:11px;color:var(--text3);margin-top:4px;">
+          将 <code>proxy-worker.js</code> 部署到 <a href="https://dash.cloudflare.com/" target="_blank" style="color:var(--accent2);">Cloudflare Workers</a>（免费10万次/天），解决在线搜索的跨域问题。<br>
+          留空则使用本地代理（需运行 <code>python server.py</code>）。
+        </p>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="group-header open" onclick="toggleGroup(this)">
         <span class="toggle-icon">▶</span> 🎨 外观设置
       </div>
       <div class="group-body open">
@@ -2031,6 +2141,15 @@ body::before {
     <button onclick="setFontSize(1)" title="放大字体">A+</button>
   </div>
   <div class="slider-row" style="margin-bottom:10px;">
+    <span>字体</span>
+    <select id="readerFontFamily" onchange="applyReaderFontFamily(this.value)" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:12px;">
+      <option value="default">系统默认</option>
+      <option value="serif">衬线(宋体)</option>
+      <option value="sans-serif">无衬线(黑体)</option>
+      <option value="kaiti">楷体</option>
+    </select>
+  </div>
+  <div class="slider-row" style="margin-bottom:10px;">
     <span>行距</span>
     <input type="range" id="readerLineHeight" min="1.6" max="2.8" step="0.2" value="2" oninput="applyReaderLineHeight(this.value)">
     <span id="readerLineHeightVal">2.0</span>
@@ -2040,12 +2159,14 @@ body::before {
     <input type="range" id="readerBrightness" min="20" max="100" step="5" value="100" oninput="applyReaderBrightness(this.value)">
   </div>
   <div class="menu-row" style="margin-bottom:10px;">
+    <button onclick="togglePageMode()" id="pageModeBtn" title="翻页/滚动">📖</button>
     <button onclick="toggleAutoScroll()" id="autoScrollBtn" title="自动滚屏">▶▶</button>
     <button onclick="toggleTTS()" id="ttsBtn" title="语音朗读">🔊</button>
     <button onclick="addBookmark()" title="添加书签">🔖</button>
     <button onclick="showBookmarkList()" title="书签列表">📑</button>
+    <button onclick="toggleFontFamily()" id="fontFamilyBtn" title="切换字体">𝐀𝐀</button>
     <span style="font-size:12px;color:var(--text2);" id="bookmarkCount"></span>
-  </div>
+  </div></div>
   <div class="slider-row" id="ttsSpeedRow" style="display:none;margin-bottom:10px;">
     <span>语速</span>
     <input type="range" id="ttsSpeed" min="0.5" max="2" step="0.1" value="1" oninput="updateTTSSpeed(this.value)">
@@ -2063,6 +2184,22 @@ body::before {
 <div class="auto-scroll-indicator" id="autoScrollIndicator">▶▶ 自动滚屏中 · 点击屏幕停止</div>
 <!-- 亮度遮罩 -->
 <div class="brightness-overlay" id="brightnessOverlay"></div>
+<!-- TOC 侧边栏 -->
+<div class="toc-sidebar" id="tocSidebar">
+  <div class="toc-sidebar-header">
+    <span style="font-weight:600;">目录</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="inbookSearchBtn" onclick="toggleInbookSearch()" style="background:none;border:none;color:inherit;font-size:16px;cursor:pointer;opacity:.7;" title="搜索">🔍</button>
+      <button onclick="closeTocSidebar()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;opacity:.7;">✕</button>
+    </div>
+  </div>
+  <div class="inbook-search-bar" id="inbookSearchBar" style="display:none;">
+    <input type="text" id="inbookSearchInput" placeholder="在当前书中搜索…" onkeydown="if(event.key==='Enter')searchInBook()">
+    <button class="btn btn-primary" onclick="searchInBook()" style="width:auto;padding:6px 12px;font-size:12px;flex-shrink:0;">搜索</button>
+  </div>
+  <div class="inbook-search-results" id="inbookSearchResults" style="display:none;"></div>
+  <div class="toc-sidebar-list" id="tocSidebarList"></div>
+</div>
 
 <!-- ===== 书籍详情页 ===== -->
 <div class="book-detail-overlay" id="bookDetailOverlay" data-book-id="">
@@ -2577,6 +2714,7 @@ function loadData() {
       readerFontSize = p.readerFontSize || 17;
       readerLineHeight = p.readerLineHeight || 2;
       readerBrightness = p.readerBrightness || 100;
+      _customProxy = p.customProxy || '';
       if (document.getElementById('settingsModel')) {
         document.getElementById('settingsModel').value = currentModel;
         document.getElementById('settingsWordTarget').value = chapterWordTarget;
@@ -2733,13 +2871,13 @@ async function _doSave() {
       }
     }
   }
-  await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
+  await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness, customProxy: _customProxy });
 }
 
 function saveDataNow() {
   clearTimeout(window._saveDebounceTimer);
   persistCurrentNovelSync();
-  dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
+  dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness, customProxy: _customProxy });
 }
 
 // ===== Model switch =====
@@ -4055,6 +4193,7 @@ function showSettings() {
   document.getElementById('settingsApiKey').value = API_KEY;
   document.getElementById('settingsDailyBudget').value = dailyBudget;
   document.getElementById('settingsMonthlyBudget').value = monthlyBudget;
+  document.getElementById('settingsCustomProxy').value = _customProxy;
   showModal('settingsModal');
 }
 function toggleApiKeyVisibility() {
@@ -4090,6 +4229,9 @@ function saveSettings() {
   monthlyBudget = parseInt(document.getElementById('settingsMonthlyBudget').value) || 0;
   try { localStorage.setItem('dailyBudget', dailyBudget); } catch(e) {}
   try { localStorage.setItem('monthlyBudget', monthlyBudget); } catch(e) {}
+  _customProxy = document.getElementById('settingsCustomProxy').value.trim();
+  // 如果填了代理地址，跳过本地代理检测，直接用自建代理
+  if (_customProxy) { _localProxyOk = false; }
   applyFontFamily();
   // 立即应用字号到 paper
   document.getElementById('paperArea')?.style.setProperty('font-size', fontSize + 'px');
@@ -5085,7 +5227,7 @@ async function parseEpub(buffer, filename) {
       readingProgress: 0
     });
 
-    await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness });
+    await dbSave('novelWriterData', { novelsMeta: novels, currentModel, customPrompt, chapterWordTarget, temperature, aiColor, contentColor, fontSize, totalTokensUsed, totalTokensCost, importedBooks, readerSkin, readerFontSize, readerLineHeight, readerBrightness, customProxy: _customProxy });
     currentShelfTab = 'bookshelf';
     renderHome();
     showToast('✅ 导入成功：' + title + ' · ' + chapters.length + '章 · ' + totalWords.toLocaleString() + '字');
@@ -5379,6 +5521,17 @@ function loadReaderChapter() {
   document.getElementById('readerContent').scrollTop = 0;
   document.getElementById('readerMenu').classList.remove('active');
 
+  if (_pageMode) {
+    document.getElementById('readerContent').classList.add('paged');
+    _currentPage = 0;
+    calculatePages();
+  } else {
+    document.getElementById('readerContent').classList.remove('paged');
+    const oldPages = document.getElementById('readerContent').querySelectorAll('.reader-page');
+    oldPages.forEach(p => p.remove());
+  }
+  updatePageIndicator();
+
   updateReaderToc();
 }
 
@@ -5386,25 +5539,251 @@ function updateReaderToc() {
   const book = getReaderBook();
   if (!book) return;
   const toc = document.getElementById('readerToc');
-  toc.innerHTML = book.chapters.map((c, i) => {
+  if (toc) {
+    toc.innerHTML = book.chapters.map((c, i) => {
+      const isCurrent = i === readerBook.chapterIndex;
+      return '<div class="toc-item' + (isCurrent ? ' current' : '') + '" onclick="readerGoToChapter(' + i + ');document.getElementById(\'readerMenu\').classList.remove(\'active\');">' +
+        esc(c.title || '第' + (i+1) + '章') + ' · ' + countChinese(c.content).toLocaleString() + '字</div>';
+    }).join('');
+  }
+  updateTocSidebar();
+}
+
+let _pageMode = false;
+let _currentPage = 0;
+let _totalPages = 1;
+
+function calculatePages() {
+  const container = document.getElementById('readerContent');
+  container.querySelectorAll('.reader-page').forEach(p => p.remove());
+  const vh = container.clientHeight;
+  if (!vh || vh < 200) return;
+  const paragraphs = container.querySelectorAll('p');
+  if (!paragraphs.length) {
+    const page = document.createElement('div');
+    page.className = 'reader-page';
+    page.innerHTML = container.innerHTML;
+    container.innerHTML = '';
+    container.appendChild(page);
+    _totalPages = 1;
+    return;
+  }
+  const pages = [];
+  let currentPage = document.createElement('div');
+  currentPage.className = 'reader-page';
+  let currentHeight = 0;
+  paragraphs.forEach(p => {
+    const clone = p.cloneNode(true);
+    const tmp = document.createElement('div');
+    tmp.className = 'reader-page';
+    tmp.style.position = 'fixed';
+    tmp.style.visibility = 'hidden';
+    tmp.style.width = container.clientWidth + 'px';
+    tmp.style.padding = '4px 0';
+    tmp.style.fontSize = getComputedStyle(container).fontSize;
+    tmp.style.lineHeight = getComputedStyle(container).lineHeight;
+    tmp.appendChild(clone);
+    document.body.appendChild(tmp);
+    const pH = tmp.clientHeight;
+    document.body.removeChild(tmp);
+    if (currentHeight + pH > vh && currentHeight > 0) {
+      pages.push(currentPage);
+      currentPage = document.createElement('div');
+      currentPage.className = 'reader-page';
+      currentHeight = 0;
+    }
+    currentPage.appendChild(p.cloneNode(true));
+    currentHeight += pH;
+  });
+  if (currentPage.children.length > 0) pages.push(currentPage);
+  _totalPages = Math.max(1, pages.length);
+  _currentPage = Math.min(_currentPage, _totalPages - 1);
+  container.innerHTML = '';
+  pages.forEach((page, i) => {
+    page.style.transform = 'translateX(' + ((i - _currentPage) * 105) + '%)';
+    page.style.opacity = Math.abs(i - _currentPage) <= 1 ? '1' : '0';
+    container.appendChild(page);
+  });
+  updatePageIndicator();
+}
+
+function showPage(idx) {
+  if (idx < 0 || idx >= _totalPages) return;
+  _currentPage = idx;
+  const container = document.getElementById('readerContent');
+  const pages = container.querySelectorAll('.reader-page');
+  pages.forEach((page, i) => {
+    page.style.transform = 'translateX(' + ((i - _currentPage) * 105) + '%)';
+    page.style.opacity = Math.abs(i - _currentPage) <= 1 ? '1' : '0';
+  });
+  updatePageIndicator();
+}
+
+function nextPage() {
+  if (!_pageMode) return;
+  if (_currentPage < _totalPages - 1) {
+    showPage(_currentPage + 1);
+  } else {
+    readerNextChapter();
+  }
+}
+
+function prevPage() {
+  if (!_pageMode) return;
+  if (_currentPage > 0) {
+    showPage(_currentPage - 1);
+  } else {
+    readerPrevChapter();
+  }
+}
+
+function updatePageIndicator() {
+  const el = document.getElementById('readerFooter');
+  if (!el) return;
+  const book = getReaderBook();
+  if (!book) return;
+  const ch = book.chapters[readerBook.chapterIndex];
+  const wordStr = ch ? countChinese(ch.content).toLocaleString() + '字' : '';
+  if (_pageMode && _totalPages > 1) {
+    el.textContent = (_currentPage + 1) + '/' + _totalPages + '页 · ' + wordStr;
+  } else {
+    el.textContent = wordStr;
+  }
+}
+
+function togglePageMode() {
+  _pageMode = !_pageMode;
+  const btn = document.getElementById('pageModeBtn');
+  if (btn) {
+    btn.style.fontWeight = _pageMode ? 'bold' : 'normal';
+    btn.style.color = _pageMode ? 'var(--accent2)' : 'inherit';
+  }
+  _currentPage = 0;
+  loadReaderChapter();
+  document.getElementById('readerMenu').classList.remove('active');
+  showToast(_pageMode ? '已切换到翻页模式' : '已切换到滚动模式');
+}
+
+function openTocSidebar() {
+  document.getElementById('tocSidebar').classList.add('open');
+  updateTocSidebar();
+}
+
+function closeTocSidebar() {
+  document.getElementById('tocSidebar').classList.remove('open');
+  document.getElementById('inbookSearchBar').style.display = 'none';
+  document.getElementById('inbookSearchResults').style.display = 'none';
+}
+
+function updateTocSidebar() {
+  const book = getReaderBook();
+  if (!book) return;
+  const list = document.getElementById('tocSidebarList');
+  if (!list) return;
+  list.innerHTML = book.chapters.map((c, i) => {
     const isCurrent = i === readerBook.chapterIndex;
-    return '<div class="toc-item' + (isCurrent ? ' current' : '') + '" onclick="readerGoToChapter(' + i + ');document.getElementById(\'readerMenu\').classList.remove(\'active\');">' +
-      esc(c.title || '第' + (i+1) + '章') + ' · ' + countChinese(c.content).toLocaleString() + '字</div>';
+    return '<div class="toc-sidebar-item' + (isCurrent ? ' current' : '') + '" onclick="readerGoToChapter(' + i + ');closeTocSidebar();">' +
+      esc(c.title || '第' + (i+1) + '章') + '<span class="toc-wordcount">' + countChinese(c.content).toLocaleString() + '字</span></div>';
   }).join('');
+}
+
+showTocPanel = function() {
+  const sidebar = document.getElementById('tocSidebar');
+  if (sidebar.classList.contains('open')) {
+    closeTocSidebar();
+  } else {
+    openTocSidebar();
+  }
+};
+
+let _fontFamilyIdx = 0;
+const FONT_FAMILIES = ['default', 'serif', 'sans-serif', 'kaiti'];
+const FONT_NAMES = { default: '系统默认', serif: '宋体/衬线', 'sans-serif': '黑体/无衬线', kaiti: '楷体' };
+
+function applyReaderFontFamily(family) {
+  const content = document.getElementById('readerContent');
+  if (!content) return;
+  switch (family) {
+    case 'serif':
+      content.style.fontFamily = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", "宋体", serif';
+      break;
+    case 'sans-serif':
+      content.style.fontFamily = '"Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", "微软雅黑", sans-serif';
+      break;
+    case 'kaiti':
+      content.style.fontFamily = '"KaiTi", "STKaiti", "楷体", "Noto Serif SC", serif';
+      break;
+    default:
+      content.style.fontFamily = '';
+  }
+}
+
+function toggleFontFamily() {
+  _fontFamilyIdx = (_fontFamilyIdx + 1) % FONT_FAMILIES.length;
+  const family = FONT_FAMILIES[_fontFamilyIdx];
+  applyReaderFontFamily(family);
+  document.getElementById('readerMenu').classList.remove('active');
+  showToast('字体: ' + FONT_NAMES[family]);
+}
+
+function toggleInbookSearch() {
+  const bar = document.getElementById('inbookSearchBar');
+  const results = document.getElementById('inbookSearchResults');
+  bar.style.display = bar.style.display === 'none' ? '' : 'none';
+  if (bar.style.display === 'none') {
+    results.style.display = 'none';
+    results.innerHTML = '';
+  } else {
+    setTimeout(() => document.getElementById('inbookSearchInput').focus(), 100);
+  }
+}
+
+function searchInBook() {
+  const query = document.getElementById('inbookSearchInput').value.trim();
+  const results = document.getElementById('inbookSearchResults');
+  if (!query) { results.style.display = 'none'; return; }
+  const book = getReaderBook();
+  if (!book) { results.innerHTML = '无法获取书籍数据'; results.style.display = ''; return; }
+  const hits = [];
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escaped, 'gi');
+  book.chapters.forEach((ch, chIdx) => {
+    let match;
+    while ((match = regex.exec(ch.content)) !== null) {
+      const start = Math.max(0, match.index - 15);
+      const end = Math.min(ch.content.length, match.index + query.length + 15);
+      const snippet = (start > 0 ? '…' : '') + ch.content.slice(start, end) + (end < ch.content.length ? '…' : '');
+      hits.push({ chapterIdx: chIdx, chapterTitle: ch.title || '第' + (chIdx+1) + '章', snippet });
+      if (hits.length >= 50) break;
+      regex.lastIndex = match.index + 1;
+    }
+  });
+  results.style.display = '';
+  if (hits.length === 0) {
+    results.innerHTML = '未找到 "' + esc(query) + '"';
+  } else {
+    results.innerHTML = '找到 ' + hits.length + ' 处 "' + esc(query) + '"<br>' +
+      hits.slice(0, 30).map(h =>
+        '<div class="inbook-search-hit" onclick="readerGoToChapter(' + h.chapterIdx + ');closeTocSidebar();">' +
+        '<strong>' + esc(h.chapterTitle) + '</strong>: ' + esc(h.snippet).replace(new RegExp('(' + escaped + ')', 'gi'), '<mark>$1</mark>') +
+        '</div>'
+      ).join('');
+  }
 }
 
 function readerGoToChapter(idx) {
   if (!readerBook) return;
   readerBook.chapterIndex = idx;
-  // Save reading position for all book types
   const book = getReaderBook();
   if (book) {
     book.currentPosition = { chapterIndex: idx, scrollPercent: 0 };
     book.readingProgress = Math.round((idx / Math.max(1, book.chapters.length - 1)) * 100);
     saveData();
   }
+  _currentPage = 0;
   loadReaderChapter();
 }
+
 
 function readerNextChapter() {
   if (!readerBook) return;
@@ -5435,11 +5814,6 @@ function toggleReaderMenu() {
   }
 }
 
-function showTocPanel() {
-  const toc = document.getElementById('readerToc');
-  toc.style.display = toc.style.display === 'none' ? '' : 'none';
-  updateReaderToc();
-}
 
 function setReaderSkin(skin) {
   readerSkin = skin;
@@ -7269,21 +7643,18 @@ function openCharDialogue() {
 // ===== 在线书源搜索 =====
 // 验证过的免费书源（无付费墙，无需登录）
 const BOOK_SOURCES = [
-  { name: '笔趣阁7', baseUrl: 'https://www.biquge7.xyz', searchUrl: 'https://www.biquge7.xyz/search.php?keyword={query}',
-    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
   { name: '新笔趣阁', baseUrl: 'https://www.xbiquge.la', searchUrl: 'https://www.xbiquge.la/search.php?keyword={query}',
     itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
     chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
-  { name: '69书吧', baseUrl: 'https://www.69shu.com', searchUrl: 'https://www.69shu.com/search?keyword={query}',
-    itemSel: '.result-list li, .novelslist2 li, .library li, .search-list li', titleSel: 'a', authorSel: '.author, .s5',
-    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' },
   { name: '笔趣阁U', baseUrl: 'https://www.biqugeu.net', searchUrl: 'https://www.biqugeu.net/search.php?keyword={query}',
     itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
     chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
   { name: '爱下电子书', baseUrl: 'https://www.ixdzs8.com', searchUrl: 'https://www.ixdzs8.com/search?keyword={query}',
     itemSel: '.result-list li, .search-list li, li', titleSel: 'a', authorSel: '.author, span',
-    chapterSel: '#list dd a, .chapter dd a, dd a', contentSel: '#content, .article' }
+    chapterSel: '#list dd a, .chapter dd a, dd a', contentSel: '#content, .article' },
+  { name: '69书吧', baseUrl: 'https://www.69shuba.com', searchUrl: 'https://www.69shuba.com/search?keyword={query}',
+    itemSel: '.result-list li, .novelslist2 li, .library li, .search-list li', titleSel: 'a', authorSel: '.author, .s5',
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' }
 ];
 
 let _onlineBookData = null;
@@ -7699,8 +8070,11 @@ async function importBookFromUrl() {
   showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章）');
 }
 
-// ===== CORS 代理（仅用于URL导入时获取章节） =====
-let _localProxyOk = null; // null=未检测 true=可用 false=不可用
+// ===== CORS 代理（用于在线搜索和URL导入） =====
+// 自建代理：将 proxy-worker.js 部署到 Cloudflare Workers 获得免费 10万次/天代理
+// 部署后把 URL 填入此处或通过设置页面配置
+let _customProxy = '';
+let _localProxyOk = null;
 
 async function checkLocalProxy() {
   try {
@@ -7715,25 +8089,35 @@ async function checkLocalProxy() {
 }
 
 function getProxyList() {
-  if (_localProxyOk === true) {
-    return ['./proxy?url=', 'https://api.codetabs.com/v1/proxy?quest=', 'https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+  const proxies = [];
+  // 1. 用户自建 Cloudflare Worker 代理（最可靠）
+  if (_customProxy) {
+    proxies.push(_customProxy + '?url=');
   }
-  // 本地代理不可用，直接用在线代理
-  return ['https://api.codetabs.com/v1/proxy?quest=', 'https://corsproxy.io/?', 'https://api.allorigins.win/raw?url='];
+  // 2. 本地 server.py 代理（运行 python server.py 时可用）
+  if (_localProxyOk !== false) {
+    proxies.push('./proxy?url=');
+  }
+  return proxies;
 }
 
 async function fetchWithCORS(url, idx) {
   const proxies = getProxyList();
-  if (idx >= proxies.length) throw new Error('所有代理不可用，请尝试直接打开书源网站搜索');
+  if (idx >= proxies.length) {
+    if (proxies.length === 0) {
+      throw new Error('没有可用的代理。\n\n解决方案：\n1. 在本地运行 python server.py\n2. 或将 proxy-worker.js 部署到 Cloudflare Workers（免费）\n\n部署方法见 proxy-worker.js 文件注释');
+    }
+    throw new Error('所有代理均失败。\n请尝试：\n1. 直接打开书源网站搜索\n2. 粘贴章节URL导入');
+  }
   try {
     const proxyUrl = proxies[idx] + encodeURIComponent(url);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const resp = await fetch(proxyUrl, { signal: controller.signal });
     clearTimeout(timeout);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const text = await resp.text();
-    if (!text || text.length < 100) throw new Error('响应太短');
+    if (!text || text.length < 100) throw new Error('响应太短（可能被反爬拦截）');
     return text;
   } catch(e) {
     return fetchWithCORS(url, idx + 1);
