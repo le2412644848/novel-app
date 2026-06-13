@@ -4609,7 +4609,7 @@ function importBookFile(event) {
     reader.onload = function(e) { parsePdf(e.target.result, file.name); };
     reader.readAsArrayBuffer(file);
   } else if (isEpub) {
-    reader.onload = function(e) { parseEpub(e.target.result, file.name); };
+    reader.onload = async function(e) { await parseEpub(e.target.result, file.name); };
     reader.readAsArrayBuffer(file);
   } else {
     reader.onload = function(e) { parseTxt(e.target.result, file.name); };
@@ -4685,63 +4685,136 @@ function parseTxt(text, filename) {
   showToast('✅ 导入成功：' + title + ' · ' + chapters.length + '章 · ' + totalWords.toLocaleString() + '字');
 }
 
-// Minimal EPUB parser (EPUB is ZIP with specific structure)
-function parseEpub(buffer, filename) {
+// ===== EPUB 解析器（ZIP结构 + deflate解压） =====
+async function parseEpub(buffer, filename) {
   try {
+    const arr = new Uint8Array(buffer);
     const view = new DataView(buffer);
-    // Find local file headers in ZIP
-    let offset = 0;
-    const files = {};
     const utf8dec = new TextDecoder('utf-8');
+    const files = {}; // filename -> decoded string content
 
-    while (offset < view.byteLength - 30) {
+    // --- ZIP 解压辅助函数 ---
+    async function inflateZipBytes(bytes) {
+      // ZIP deflate is raw deflate (no zlib header)
+      try {
+        const ds = new DecompressionStream('deflate-raw');
+        const writer = ds.writable.getWriter();
+        const reader = ds.readable.getReader();
+        writer.write(bytes);
+        writer.close();
+        const chunks = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+        const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const c of chunks) { result.set(c, offset); offset += c.length; }
+        return result;
+      } catch(e) {
+        // Try zlib-wrapped as fallback
+        try {
+          const ds = new DecompressionStream('deflate');
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          writer.write(bytes);
+          writer.close();
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+          const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+          const result = new Uint8Array(totalLen);
+          let offset = 0;
+          for (const c of chunks) { result.set(c, offset); offset += c.length; }
+          return result;
+        } catch(e2) {
+          return null;
+        }
+      }
+    }
+
+    // --- 第一遍：解析ZIP local file headers，收集所有条目 ---
+    const entries = []; // { name, dataOffset, compMethod, compSize, uncompSize }
+    let offset = 0;
+    while (offset < arr.length - 30) {
       const sig = view.getUint32(offset, true);
       if (sig !== 0x04034b50) { offset++; continue; }
 
+      const gpFlag = view.getUint16(offset + 6, true);
+      const compMethod = view.getUint16(offset + 8, true);
+      let compSize = view.getUint32(offset + 20, true);
       const nameLen = view.getUint16(offset + 26, true);
       const extraLen = view.getUint16(offset + 28, true);
       const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
-      const name = utf8dec.decode(nameBytes);
-      const dataOffset = offset + 30 + nameLen + extraLen;
-      const compSize = view.getUint32(offset + 20, true);
-      const compMethod = view.getUint16(offset + 8, true);
+      let name = utf8dec.decode(nameBytes);
 
-      if (compSize > 0 && compSize < 5 * 1024 * 1024) {
-        const data = new Uint8Array(buffer, dataOffset, compSize);
-        if (compMethod === 0) {
-          files[name] = utf8dec.decode(data);
-        } else if (compMethod === 8 && typeof DecompressionStream !== 'undefined') {
-          // Will be handled async below
-          files[name + '::deflate'] = true;
-          files[name + '::raw'] = data;
+      // 如果 bit 11 设置，文件名是 UTF-8 编码
+      // (我们的 TextDecoder 默认 utf-8，无需特殊处理)
+
+      const dataOffset = offset + 30 + nameLen + extraLen;
+
+      // 处理 data descriptor：如果 bit 3 设置，compSize 可能为 0
+      if ((gpFlag & 0x0008) && compSize === 0) {
+        // 搜索下一个 local file header 或 central directory
+        let searchPos = dataOffset;
+        while (searchPos < arr.length - 4) {
+          const nextSig = view.getUint32(searchPos, true);
+          if (nextSig === 0x04034b50 || nextSig === 0x02014b50) {
+            compSize = searchPos - dataOffset;
+            break;
+          }
+          searchPos++;
         }
+        if (compSize === 0) compSize = arr.length - dataOffset;
       }
+
+      if (compSize > 0 && compSize < 10 * 1024 * 1024 && name.length > 0) {
+        entries.push({ name, dataOffset, compMethod, compSize });
+      }
+
       offset = dataOffset + compSize;
     }
 
-    // Decompress deflate entries if needed (simplified - skip for now, just read stored entries)
-    // Most EPUBs have small text files stored without compression, or we handle basic cases
+    // --- 第二遍：解压所有deflate条目 ---
+    let deflateCount = 0;
+    for (const entry of entries) {
+      const bytes = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
+      if (entry.compMethod === 0) {
+        // 无压缩
+        files[entry.name] = utf8dec.decode(bytes);
+      } else if (entry.compMethod === 8) {
+        // Deflate压缩
+        const decompressed = await inflateZipBytes(bytes);
+        if (decompressed) {
+          files[entry.name] = utf8dec.decode(decompressed);
+          deflateCount++;
+        }
+      }
+    }
 
-    // Find container.xml
+    // --- 找到 container.xml ---
     const containerFile = Object.keys(files).find(k => k.endsWith('container.xml') || k === 'META-INF/container.xml');
     if (!containerFile) {
-      showToast('⚠️ EPUB解析失败：未找到container.xml，请尝试TXT格式');
+      showToast('⚠️ EPUB解析失败：未找到container.xml\n\n找到了' + Object.keys(files).length + '个文件，' + deflateCount + '个已解压');
       return;
     }
 
-    // Find rootfile
     const containerXml = files[containerFile];
     const rootfileMatch = containerXml.match(/full-path="([^"]+)"/);
     if (!rootfileMatch) {
-      showToast('⚠️ EPUB解析失败：无法找到内容文件');
+      showToast('⚠️ EPUB解析失败：无法找到内容文件路径');
       return;
     }
 
     const opfPath = rootfileMatch[1];
-    // Find the OPF file (might have path prefix)
-    const opfFile = Object.keys(files).find(k => k === opfPath || k.endsWith(opfPath) || k.endsWith(opfPath.split('/').pop()));
+    const opfFile = Object.keys(files).find(k => k === opfPath || k.endsWith('/' + opfPath) || k.endsWith(opfPath.split('/').pop()));
     if (!opfFile) {
-      showToast('⚠️ EPUB解析失败：无法找到OPF文件');
+      showToast('⚠️ EPUB解析失败：无法找到OPF文件（' + opfPath + '）');
       return;
     }
 
@@ -4751,16 +4824,15 @@ function parseEpub(buffer, filename) {
       return;
     }
 
-    // Extract metadata
+    // --- 提取元数据 ---
     const titleMatch = opfXml.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/);
     const authorMatch = opfXml.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/);
     const title = titleMatch ? titleMatch[1] : filename.replace(/\.epub$/i, '');
     const author = authorMatch ? authorMatch[1] : '';
 
-    // Extract spine items
+    // --- 提取 spine 和 manifest ---
     const spineMatch = opfXml.match(/<spine[^>]*>([\s\S]*?)<\/spine>/);
     const manifestMatch = opfXml.match(/<manifest>([\s\S]*?)<\/manifest>/);
-
     if (!spineMatch || !manifestMatch) {
       showToast('⚠️ EPUB解析失败：无法找到目录结构');
       return;
@@ -4770,48 +4842,73 @@ function parseEpub(buffer, filename) {
     const spine = spineMatch[1];
     const idrefs = [...spine.matchAll(/idref="([^"]+)"/g)].map(m => m[1]);
 
-    // Build id -> href map
+    // id -> href 映射
     const idToHref = {};
     const hrefMatches = manifest.matchAll(/id="([^"]+)"[^>]*href="([^"]+)"/g);
     for (const m of hrefMatches) {
       idToHref[m[1]] = m[2];
     }
 
-    // Get opf directory for resolving paths
+    // OPF所在目录 (用于解析相对路径)
     const opfDir = opfPath.includes('/') ? opfPath.replace(/\/[^/]+$/, '') + '/' : '';
 
+    // --- 提取章节 ---
     const chapters = [];
     for (const idref of idrefs) {
       const href = idToHref[idref];
       if (!href) continue;
-      const fullPath = opfDir + href;
-      const htmlFile = Object.keys(files).find(k => k === fullPath || k.endsWith(href) || k.endsWith(href.split('/').pop()));
+      const fullPath = decodeURIComponent(opfDir + href);
+      // 尝试多种路径匹配
+      const htmlFile = Object.keys(files).find(k =>
+        k === fullPath || k.endsWith('/' + fullPath) || k === href || k.endsWith('/' + href) || k.endsWith(href.split('/').pop())
+      );
       if (!htmlFile) continue;
 
       const html = files[htmlFile];
       if (!html) continue;
 
-      // Strip HTML tags to get plain text
-      const text = html.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+      // 提取章节标题
+      let chTitle = '';
+      const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      const h2Match = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+      const titleTagMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (h1Match) chTitle = h1Match[1].replace(/<[^>]+>/g, '').trim();
+      else if (h2Match) chTitle = h2Match[1].replace(/<[^>]+>/g, '').trim();
+      else if (titleTagMatch) chTitle = titleTagMatch[1].replace(/<[^>]+>/g, '').trim();
+
+      // 去除HTML标签获取纯文本
+      const text = html
+        .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
         .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
         .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<p[^>]*>/gi, '\n')
+        .replace(/<\/p>/gi, '')
+        .replace(/<div[^>]*>/gi, '\n')
+        .replace(/<\/div>/gi, '')
         .replace(/<[^>]+>/g, '')
         .replace(/&nbsp;/g, ' ')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
-        .replace(/&#?\w+;/g, '')
+        .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d)))
+        .replace(/&#x([0-9A-Fa-f]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/&[a-z]+;/g, '')
+        .replace(/[ \t]+/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
 
-      if (text.length > 50) {
-        chapters.push({ title: '第' + (chapters.length + 1) + '章', content: text });
+      if (text.length > 30) {
+        chapters.push({
+          title: chTitle || '第' + (chapters.length + 1) + '章',
+          content: text
+        });
       }
     }
 
     if (chapters.length === 0) {
-      showToast('⚠️ EPUB解析失败：未能提取到章节内容');
+      showToast('⚠️ EPUB解析失败：未能提取到章节内容\n\n文件数：' + Object.keys(files).length + '，解压：' + deflateCount);
       return;
     }
 
