@@ -4316,12 +4316,31 @@ function exportNovelMd() {
   // 注册 Service Worker（网络优先，离线回退缓存）
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
-    navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(()=>{});
+    navigator.serviceWorker.register('./sw.js', { scope: './' })
+      .then(reg => console.log('✅ SW 注册成功, scope:', reg.scope))
+      .catch(err => console.warn('❌ SW 注册失败:', err.message));
+  } else {
+    console.warn('⚠️ 浏览器不支持 Service Worker');
+  }
+
+  // 检查 manifest 是否加载成功
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) {
+    fetch(manifestLink.href)
+      .then(r => r.json())
+      .then(m => console.log('✅ Manifest 加载成功:', m.name, 'icons:', m.icons?.length + '个', 'start_url:', m.start_url))
+      .catch(e => console.warn('❌ Manifest 加载失败:', e.message));
   }
 
   let deferredPrompt = null;
   window.addEventListener('beforeinstallprompt', e => {
+    console.log('🔔 beforeinstallprompt 触发！');
     deferredPrompt = e;
+  });
+  // 监控 appinstalled 事件
+  window.addEventListener('appinstalled', () => {
+    console.log('🎉 PWA 安装成功！');
+    showToast('✅ 安装成功！');
   });
   window.installApp = function() {
     if (deferredPrompt) {
