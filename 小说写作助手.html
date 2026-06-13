@@ -7841,6 +7841,7 @@ async function searchOnlineNovels() {
       });
       hintEl.innerHTML = '<span class="os-status-dot success"></span> ' + src.name + '：找到 ' + count + ' 条结果';
     } catch(e) {
+      debugLog.push(...(window._lastCORSLog || []));
       debugLog.push('❌ ' + src.name + ': ' + (e.message || '连接失败'));
       hintEl.innerHTML = '<span class="os-status-dot error"></span> ' + src.name + '：' + (e.message || '连接失败') + ' ' + getShortProxyLog();
     }
