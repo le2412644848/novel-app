@@ -4947,7 +4947,7 @@ async function parseEpub(buffer, filename) {
       const containerXml = files[containerFile];
       const rootfileMatch = containerXml.match(/full-path="([^"]+)"/) || containerXml.match(/full-path='([^']+)'/);
       if (rootfileMatch) {
-        const opfPath = rootfileMatch[1];
+        const opfPath = decodeURIComponent(rootfileMatch[1].replace(/\\/g, '/'));
         const opfPathLower = opfPath.toLowerCase().replace(/\\/g, '/');
         const opfFile = Object.keys(files).find(k => {
           const kl = k.toLowerCase().replace(/\\/g, '/');
