@@ -2188,16 +2188,15 @@ body::before {
 <div class="modal-overlay" id="onlineSearchModal">
   <div class="modal" style="max-width:520px;">
     <h2>🔍 在线搜书</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">输入书名 → 点书源 → 新标签页打开搜索（秒开，无需代理）</p>
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <input type="text" id="onlineSearchInput" placeholder="输入书名..." onkeydown="if(event.key==='Enter')openSourceSearch(0)" style="flex:1;" autofocus>
-      <button class="btn btn-primary" onclick="openSourceSearch(0)">🔗 打开搜索</button>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <input type="text" id="onlineSearchInput" placeholder="输入书名，按 Enter 搜索..." onkeydown="if(event.key==='Enter')searchOnlineNovels()" style="flex:1;font-size:15px;padding:12px 16px;" autofocus>
+      <button class="btn btn-primary" onclick="searchOnlineNovels()" style="width:auto;flex-shrink:0;padding:12px 22px;">🔍 搜索</button>
     </div>
-    <div id="sourceGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:55vh;overflow-y:auto;"></div>
-    <details style="margin-top:10px;font-size:12px;color:var(--text3);">
-      <summary style="cursor:pointer;">💡 找到书后如何加入书架？</summary>
-      <p style="margin-top:6px;">在网站找到想要的书籍后，复制该书的<b>目录页URL</b> → 回到「书架」tab → 点「🔗 粘贴书源URL」→ 自动下载全部章节。<br><small style="color:var(--text3);">💡 运行 server.py 可享受本地代理加速下载</small></p>
-    </details>
+    <div id="onlineSearchHint" style="font-size:11px;color:var(--text3);margin-bottom:8px;">搜索将依次查询多个免费书源，请在下方结果中点击书名查看详情</div>
+    <div id="onlineSearchResults" style="max-height:55vh;overflow-y:auto;"></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text3);">
+      💡 找到书后打开目录页 → 复制URL → 「🔗 粘贴书源URL」导入书架
+    </div>
     <div class="btn-group" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModal('onlineSearchModal')">关闭</button>
     </div>
@@ -6284,54 +6283,288 @@ function openCharDialogue() {
 }
 
 // ===== 在线书源搜索 =====
+// 验证过的免费书源（无付费墙，无需登录）
 const BOOK_SOURCES = [
-  { name: '必应搜索', baseUrl: 'https://www.bing.com', searchUrl: 'https://www.bing.com/search?q={query}+小说' },
-  { name: '起点中文网', baseUrl: 'https://www.qidian.com', searchUrl: 'https://www.qidian.com/search?kw={query}' },
-  { name: '番茄小说', baseUrl: 'https://fanqienovel.com', searchUrl: 'https://fanqienovel.com/search?keyword={query}' },
-  { name: '七猫小说', baseUrl: 'https://www.qimao.com', searchUrl: 'https://www.qimao.com/search/index?keyword={query}' },
-  { name: '笔趣阁', baseUrl: 'https://www.biquge.com', searchUrl: 'https://www.biquge.com/search.php?keyword={query}' },
-  { name: '69书吧', baseUrl: 'https://www.69shuba.com', searchUrl: 'https://www.69shuba.com/search?keyword={query}' }
+  { name: '笔趣阁7', baseUrl: 'https://www.biquge7.xyz', searchUrl: 'https://www.biquge7.xyz/search.php?keyword={query}',
+    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
+  { name: '新笔趣阁', baseUrl: 'https://www.xbiquge.la', searchUrl: 'https://www.xbiquge.la/search.php?keyword={query}',
+    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
+  { name: '69书吧', baseUrl: 'https://www.69shu.com', searchUrl: 'https://www.69shu.com/search?keyword={query}',
+    itemSel: '.result-list li, .novelslist2 li, .library li, .search-list li', titleSel: 'a', authorSel: '.author, .s5',
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .txtnav' },
+  { name: '笔趣阁U', baseUrl: 'https://www.biqugeu.net', searchUrl: 'https://www.biqugeu.net/search.php?keyword={query}',
+    itemSel: '.result-list li, .novelslist2 li, .library li', titleSel: 'a', authorSel: '.author, .s4',
+    chapterSel: '#list dd a, dd a', contentSel: '#content, .showtxt' },
+  { name: '爱下电子书', baseUrl: 'https://www.ixdzs8.com', searchUrl: 'https://www.ixdzs8.com/search?keyword={query}',
+    itemSel: '.result-list li, .search-list li, li', titleSel: 'a', authorSel: '.author, span',
+    chapterSel: '#list dd a, .chapter dd a, dd a', contentSel: '#content, .article' }
 ];
 
+let _onlineBookData = null;
 let _onlineChapters = [];
 let _currentOnlineSource = null;
 
 function showOnlineSearch() {
   document.getElementById('onlineSearchInput').value = '';
-  renderSourceGrid();
+  document.getElementById('onlineSearchResults').innerHTML = '<p style="text-align:center;color:var(--text3);padding:20px;">输入书名后按 Enter 或点击「搜索」</p>';
+  document.getElementById('onlineSearchHint').textContent = '搜索将依次查询 ' + BOOK_SOURCES.length + ' 个免费书源';
+  _onlineBookData = null;
   showModal('onlineSearchModal');
-  setTimeout(() => document.getElementById('onlineSearchInput').focus(), 100);
+  setTimeout(() => document.getElementById('onlineSearchInput').focus(), 150);
 }
 
-function renderSourceGrid() {
-  const grid = document.getElementById('sourceGrid');
-  const descMap = {
-    '必应搜索': '搜索引擎 · 最全',
-    '起点中文网': '正版付费 · 质量高',
-    '番茄小说': '免费阅读 · 量大',
-    '七猫小说': '免费 · 热门书多',
-    '笔趣阁': '经典盗版源 · 全',
-    '69书吧': '老牌书源 · 稳定'
-  };
-  grid.innerHTML = BOOK_SOURCES.map((src, i) =>
-    '<div class="source-card" onclick="openSourceSearch(' + i + ')" title="在' + src.name + '搜索">' +
-      '<div style="flex:1;min-width:0;">' +
-        '<div class="source-card-name">' + esc(src.name) + '</div>' +
-        '<div class="source-card-desc">' + (descMap[src.name] || '打开搜索页') + '</div>' +
-      '</div>' +
-      '<span style="font-size:18px;flex-shrink:0;">→</span>' +
-    '</div>'
+// 核心搜索：优先本地代理，失败则打开网页
+async function searchOnlineNovels() {
+  const query = document.getElementById('onlineSearchInput').value.trim();
+  if (!query) { showToast('请输入书名'); return; }
+  const resultsEl = document.getElementById('onlineSearchResults');
+  const hintEl = document.getElementById('onlineSearchHint');
+  resultsEl.innerHTML = '<div style="text-align:center;padding:30px;"><div class="spinner"></div><p style="margin-top:10px;color:var(--text2);">正在搜索 ' + BOOK_SOURCES.length + ' 个书源...</p></div>';
+
+  const allResults = [];
+  for (const src of BOOK_SOURCES) {
+    try {
+      hintEl.textContent = '搜索中：' + src.name + '...';
+      const searchUrl = src.searchUrl.replace('{query}', encodeURIComponent(query));
+      const html = await fetchWithCORS(searchUrl, 0);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const items = doc.querySelectorAll(src.itemSel);
+      let count = 0;
+      items.forEach(item => {
+        const links = item.querySelectorAll(src.titleSel);
+        for (const link of links) {
+          if (link.tagName !== 'A' || !link.getAttribute('href')) continue;
+          const title = link.textContent.trim();
+          const href = link.getAttribute('href');
+          if (!title || !href || title.length < 2 || title.length > 50) continue;
+          if (href.startsWith('javascript:') || href === '#') continue;
+          let author = '';
+          const authorEl = item.querySelector(src.authorSel);
+          if (authorEl) author = authorEl.textContent.replace(/作者[：:]?\s*/, '').trim();
+          const fullUrl = href.startsWith('http') ? href : src.baseUrl + (href.startsWith('/') ? '' : '/') + href;
+          allResults.push({ title, author, url: fullUrl, source: src.name, sourceKey: src.baseUrl });
+          count++;
+          break;
+        }
+      });
+      hintEl.textContent = src.name + '：' + count + '条';
+    } catch(e) {
+      hintEl.textContent = src.name + '：连接失败';
+    }
+  }
+
+  // 去重
+  const seen = new Set();
+  const deduped = allResults.filter(r => {
+    const key = r.url;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (deduped.length === 0) {
+    // 全部失败 → 提供在新标签页搜索的 fallback
+    resultsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">' +
+      '<p style="margin-bottom:12px;">代理搜索无结果</p>' +
+      '<p style="font-size:12px;color:var(--text3);margin-bottom:12px;">运行 server.py 可启用本地代理加速</p>' +
+      BOOK_SOURCES.map((src, i) =>
+        '<button class="btn btn-secondary btn-sm" onclick="openSourceSearch(' + i + ')" style="margin:3px;width:auto;">在 ' + src.name + ' 搜索</button>'
+      ).join('') +
+    '</div>';
+    hintEl.textContent = '无结果 — 可点击下方按钮直接在网站搜索';
+    return;
+  }
+
+  hintEl.textContent = '找到 ' + deduped.length + ' 个结果（来自 ' + BOOK_SOURCES.length + ' 个书源）';
+  _onlineBookData = deduped;
+  _currentOnlineSource = null;
+
+  resultsEl.innerHTML = deduped.slice(0, 40).map((r, i) =>
+    '<div class="online-search-card" onclick="openOnlineBook(' + i + ')">' +
+      '<div class="os-cover" style="background:' + COVER_GRADIENTS[i % 12] + ';">' + esc(r.title).charAt(0) + '</div>' +
+      '<div class="os-info">' +
+        '<div class="os-title">' + esc(r.title) + ' <span class="os-source-tag">[' + esc(r.source) + ']</span></div>' +
+        (r.author ? '<div class="os-author">' + esc(r.author) + '</div>' : '') +
+      '</div></div>'
   ).join('');
 }
 
-// 直接打开书源搜索页（新标签页，秒开）
+// 打开搜索结果中的书籍 → 获取章节目录
+async function openOnlineBook(idx) {
+  if (!_onlineBookData || idx >= _onlineBookData.length) return;
+  const book = _onlineBookData[idx];
+  _currentOnlineSource = BOOK_SOURCES.find(s => s.baseUrl === book.sourceKey) || BOOK_SOURCES[0];
+  closeModal('onlineSearchModal');
+
+  // 弹窗提示章节加载中
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = '<div class="modal" style="max-width:480px;"><h2>' + esc(book.title) + '</h2><p style="text-align:center;padding:30px;"><div class="spinner"></div></p><p style="text-align:center;color:var(--text2);">加载章节目录...</p><button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()" style="width:100%;margin-top:10px;">取消</button></div>';
+  document.body.appendChild(overlay);
+
+  try {
+    const html = await fetchWithCORS(book.url, 0);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const src = _currentOnlineSource;
+    let chapterLinks = doc.querySelectorAll(src.chapterSel);
+    if (chapterLinks.length === 0) {
+      chapterLinks = doc.querySelectorAll('#list dd a, .chapterlist dd a, .chapter dd a, dd a');
+    }
+    if (chapterLinks.length === 0) {
+      chapterLinks = doc.querySelectorAll('a[href]');
+      chapterLinks = Array.from(chapterLinks).filter(a => /第[一二三四五六七八九十百千0-9]+[章节回]/.test(a.textContent));
+    }
+
+    const chapters = [];
+    const seen = new Set();
+    const base = new URL(book.url);
+    chapterLinks.forEach(a => {
+      const text = a.textContent.trim();
+      const href = a.getAttribute('href');
+      if (!text || !href || text.length < 2 || text.length > 60) return;
+      if (seen.has(href)) return;
+      seen.add(href);
+      let fullUrl;
+      if (href.startsWith('http')) fullUrl = href;
+      else if (href.startsWith('/')) fullUrl = base.origin + href;
+      else fullUrl = base.origin + base.pathname.replace(/\/[^/]*$/, '') + '/' + href;
+      chapters.push({ title: text, url: fullUrl });
+    });
+
+    overlay.remove();
+    if (chapters.length === 0) {
+      showToast('未能解析章节列表，请用「粘贴书源URL」手动导入');
+      return;
+    }
+
+    _onlineChapters = chapters;
+    // 显示章节列表 + 加入书架按钮
+    const listOverlay = document.createElement('div');
+    listOverlay.className = 'modal-overlay active';
+    listOverlay.innerHTML = '<div class="modal" style="max-width:480px;">' +
+      '<h2>' + esc(book.title) + '</h2>' +
+      '<p style="font-size:12px;color:var(--text3);margin-bottom:8px;">共 ' + chapters.length + ' 章</p>' +
+      '<div style="max-height:50vh;overflow-y:auto;margin-bottom:8px;">' +
+        chapters.map((ch, i) => '<div style="padding:8px 0;border-bottom:1px solid var(--glass-border);font-size:13px;cursor:pointer;" onclick="readOnlineChapter(' + i + ');this.closest(\'.modal-overlay\').remove();">' + esc(ch.title) + '</div>').join('') +
+      '</div>' +
+      '<div class="btn-group">' +
+        '<button class="btn btn-secondary" onclick="this.closest(\'.modal-overlay\').remove()">关闭</button>' +
+        '<button class="btn btn-primary" onclick="addOnlineBookToShelf();this.closest(\'.modal-overlay\').remove();">📚 加入书架（下载全部）</button>' +
+      '</div></div>';
+    document.body.appendChild(listOverlay);
+  } catch(e) {
+    overlay.remove();
+    showToast('获取失败：' + e.message + ' — 试试「粘贴书源URL」');
+  }
+}
+
+// 在线阅读章节
+async function readOnlineChapter(idx) {
+  if (idx >= _onlineChapters.length) return;
+  const ch = _onlineChapters[idx];
+  showToast('加载中...');
+  const src = _currentOnlineSource || BOOK_SOURCES[0];
+  try {
+    const html = await fetchWithCORS(ch.url, 0);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    let content = '';
+    const contentEl = doc.querySelector(src.contentSel);
+    if (contentEl) content = contentEl.textContent.trim();
+    if (!content || content.length < 50) {
+      const fallback = doc.querySelector('#content, .showtxt, #chaptercontent, .content, .article, .txtnav');
+      if (fallback) content = fallback.textContent.trim();
+    }
+    if (!content || content.length < 30) {
+      content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : ch.title;
+    }
+    content = content.replace(/\n{3,}/g, '\n\n').replace(/[\t ]{2,}/g, ' ');
+
+    const tempBook = {
+      id: 'online_' + Date.now(), title: ch.title,
+      author: '在线书源', source: '在线',
+      coverColor: COVER_GRADIENTS[0],
+      chapters: _onlineChapters.map(c => ({ title: c.title, content: c.title + '\n\n' })),
+      currentPosition: { chapterIndex: idx, scrollPercent: 0 },
+      importedAt: new Date().toISOString(),
+      totalWords: 0, readingProgress: 0, bookmarks: []
+    };
+    tempBook.chapters[idx] = { title: ch.title, content: content };
+    importedBooks.push(tempBook);
+    readerBook = { type: 'imported', bookIndex: importedBooks.length - 1, chapterIndex: idx };
+    openReader();
+    showToast('正在阅读：' + ch.title);
+  } catch(e) {
+    showToast('加载失败：' + e.message);
+  }
+}
+
+// 加入书架并下载全部章节
+async function addOnlineBookToShelf() {
+  if (_onlineChapters.length === 0) { showToast('无章节可下载'); return; }
+  const title = _onlineBookData ? _onlineBookData[0].title : '在线书籍';
+  const src = _currentOnlineSource || BOOK_SOURCES[0];
+  const bookId = Date.now().toString(36);
+  const newBook = {
+    id: bookId, title: title, author: '在线书源', source: '在线',
+    coverColor: COVER_GRADIENTS[Math.floor(Math.random() * 12)],
+    chapters: _onlineChapters.map(c => ({ title: c.title, content: '加载中...' })),
+    currentPosition: { chapterIndex: 0, scrollPercent: 0 },
+    importedAt: new Date().toISOString(),
+    totalWords: 0, readingProgress: 0, bookmarks: [],
+    _downloading: true
+  };
+  importedBooks.push(newBook);
+  saveData();
+  showToast('开始下载 ' + _onlineChapters.length + ' 章...');
+  let downloaded = 0;
+  const total = _onlineChapters.length;
+  for (let i = 0; i < total; i++) {
+    try {
+      const html = await fetchWithCORS(_onlineChapters[i].url, 0);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      let content = '';
+      const el = doc.querySelector(src.contentSel);
+      if (el) content = el.textContent.trim();
+      if (!content) {
+        const fe = doc.querySelector('#content, .showtxt, #chaptercontent, .content, .article');
+        if (fe) content = fe.textContent.trim();
+      }
+      if (!content || content.length < 30) {
+        content = doc.body ? doc.body.textContent.trim().substring(0, 10000) : _onlineChapters[i].title;
+      }
+      newBook.chapters[i].content = content;
+      downloaded++;
+      if (downloaded % 5 === 0 || downloaded === total) {
+        newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
+        saveData();
+        showToast('已下载 ' + downloaded + '/' + total + ' 章');
+      }
+    } catch(e) {
+      newBook.chapters[i].content = _onlineChapters[i].title + '\n\n（下载失败）';
+      downloaded++;
+    }
+    await new Promise(r => setTimeout(r, 400));
+  }
+  newBook._downloading = false;
+  newBook.totalWords = newBook.chapters.reduce((s, c) => s + countChinese(c.content), 0);
+  saveData();
+  renderBookshelf();
+  showToast('✅ ' + title + ' 已加入书架（' + newBook.chapters.length + '章）');
+}
+
+// Fallback: 在新标签页打开书源搜索
 function openSourceSearch(idx) {
   const query = document.getElementById('onlineSearchInput').value.trim();
   const src = BOOK_SOURCES[idx];
-  _currentOnlineSource = src;
   const url = query ? src.searchUrl.replace('{query}', encodeURIComponent(query)) : src.baseUrl;
   window.open(url, '_blank');
-  showToast('已在 ' + src.name + ' 打开搜索' + (query ? '：「' + query + '」' : ''));
+  showToast('已在 ' + src.name + ' 打开搜索');
 }
 
 // ===== 从URL导入书籍 =====
