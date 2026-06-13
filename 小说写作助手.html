@@ -1892,7 +1892,7 @@ body::before {
     <label>人物设定</label>
     <textarea id="bibleCharacters" rows="5" placeholder="角色名：性格、外貌、背景、目标&#10;如：&#10;· 沈青娥：18岁，江南织造之女，聪慧坚韧，为救父亲上京&#10;· 赵景川：25岁，锦衣卫北镇抚司千户，冷面热心，身世成谜" style="min-height:90px;"></textarea>
     
-    <label>章节大纲 <button class="btn btn-sm btn-secondary" onclick="saveBible();showOutlineSort()" style="font-size:11px;margin-left:8px;">排序</button></label>
+    <label>章节大纲 <button class="btn btn-sm btn-secondary" onclick="generateBibleOutline()" style="font-size:11px;margin-left:8px;color:var(--accent);border-color:var(--accent);">✨ AI生成</button> <button class="btn btn-sm btn-secondary" onclick="saveBible();showOutlineSort()" style="font-size:11px;">排序</button></label>
     <textarea id="bibleOutline" rows="6" placeholder="每章大致内容：&#10;第1章：XXX&#10;第2章：XXX&#10;..." style="min-height:100px;max-height:300px;overflow-y:auto;" oninput="debouncePreview()"></textarea>
     <div id="outlinePreview" style="font-size:12px;color:var(--text2);margin:2px 0 12px 0;line-height:1.5;display:none;"></div>
     
@@ -3661,7 +3661,7 @@ function autoWrite() {
   if (other) biblePart += '【其他设定】\n' + other + '\n\n';
   
   const instruction = hasContent ? '续写本章正文（注意看标 >>>>> 的章节要求）' : '写本章正文（严格按 >>>>> 标记的章节要求来写）';
-  const userMsg = '现在写第' + chNum + '章。\n\n' + biblePart + '请' + instruction + '，不要输出章节标题。';
+  const userMsg = '现在写第' + chNum + '章。\n\n' + biblePart + '请' + instruction + '。\n输出格式：第一行写章节标题（格式：第' + chNum + '章：标题名），空一行后开始正文。';
   
   doWrite(userMsg, true);
 }
@@ -3805,7 +3805,18 @@ async function doWrite(userText, isFullMessage) {
     if (buffer.trim()) processSseData(buffer.trim());
     
     let reply = fullReply.trim();
-    reply = reply.replace(/^第[一二三四五六七八九十百千]+章[：:。]?\s*\n?/, '').trim();
+    // 从第一行提取章节标题
+    let titleMatch = reply.match(/^第[一二三四五六七八九十百千\d]+章[：:]\s*(.+?)(?:\n|$)/);
+    if (titleMatch) {
+      const extractedTitle = titleMatch[1].trim();
+      if (extractedTitle.length <= 30) {
+        c.title = extractedTitle;
+      }
+      // 删除标题行
+      reply = reply.replace(/^第[一二三四五六七八九十百千\d]+章[：:].+?\n+/, '').trim();
+    } else {
+      reply = reply.replace(/^第[一二三四五六七八九十百千]+章[：:。]?\s*\n?/, '').trim();
+    }
     // 保证段落之间有空行：把单个换行变成双换行（但保留已有的双换行）
     reply = reply.replace(/\n{3,}/g, '\n\n');
     if (!/\n\n/.test(reply)) reply = reply.replace(/([^\n])\n([^\n])/g, '$1\n\n$2');
@@ -4308,12 +4319,20 @@ async function generateOutline() {
   let style = sel ? sel.dataset.style : '古风';
   const custom = document.getElementById('novelCustomStyle').value.trim();
   if (custom) style = custom;
+  // 尝试读取已有小说的bible数据（编辑已有小说时）
+  let bibleContext = '';
+  const n = getNovel();
+  if (n?.bible) {
+    if (n.bible.synopsis?.trim()) bibleContext += '【故事梗概】\n' + n.bible.synopsis.trim() + '\n\n';
+    if (n.bible.characters?.trim()) bibleContext += '【人物设定】\n' + n.bible.characters.trim() + '\n\n';
+    if (n.bible.other?.trim()) bibleContext += '【其他设定/世界观】\n' + n.bible.other.trim() + '\n\n';
+  }
   const btn = document.getElementById('outlineBtn');
   btn.disabled = true;
   btn.textContent = '⏳ 生成中…';
   document.getElementById('outlineResult').innerHTML = '<div style="color:var(--text3)">正在生成大纲，约15秒…</div>';
   try {
-    const prompt = `你是一位资深小说编辑。请为一部${style}风格的小说《${title}》生成一个10章的章节大纲。\n\n要求：\n1. 每章用一句话概括核心剧情\n2. 章节之间要有连贯性，有起承转合\n3. 格式：每行一个章节，如"第一章：标题——剧情概要"\n4. 只输出大纲，不要多余的解释`;
+    const prompt = `你是一位资深小说编辑。请为一部${style}风格的小说《${title}》生成一个10章的章节大纲。\n\n${bibleContext ? '以下是已有的故事设定，请严格据此规划大纲：\n' + bibleContext + '\n' : ''}要求：\n1. 每章用一句话概括核心剧情\n2. 章节之间要有连贯性，有起承转合\n3. 格式：每行一个章节，如"第一章：标题——剧情概要"\n4. 只输出大纲，不要多余的解释`;
     const res = await fetch(API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
@@ -4334,6 +4353,49 @@ async function generateOutline() {
   }
 }
 
+// ===== AI 根据bible生成大纲 =====
+async function generateBibleOutline() {
+  const synopsis = document.getElementById('bibleSynopsis').value.trim();
+  const characters = document.getElementById('bibleCharacters').value.trim();
+  const other = document.getElementById('bibleOther').value.trim();
+  const n = getNovel();
+  if (!n) { showToast('请先打开小说'); return; }
+
+  let bibleContext = '';
+  if (synopsis) bibleContext += '【故事梗概】\n' + synopsis + '\n\n';
+  if (characters) bibleContext += '【人物设定】\n' + characters + '\n\n';
+  if (other) bibleContext += '【其他设定/世界观】\n' + other + '\n\n';
+
+  if (!bibleContext) { showToast('请先填写至少一项设定（梗概、人物、或其他设定）'); return; }
+
+  const outlineEl = document.getElementById('bibleOutline');
+  const origOutline = outlineEl.value.trim();
+  const btn = document.querySelector('#bibleModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成中…'; }
+  showToast('⏳ 正在根据设定生成大纲…');
+
+  try {
+    const isUpdate = origOutline.length > 0;
+    const prompt = `你是一位资深小说编辑。${isUpdate ? '请根据设定优化以下章节大纲，保留原有的合理结构，修正不符合设定的部分。\n\n【当前大纲】\n' + origOutline + '\n\n' : '请根据设定生成一个章节大纲。\n\n'}` + bibleContext + `\n\n要求：\n1. 每章用一句话概括核心剧情\n2. 章节之间要有连贯性，有起承转合\n3. 格式：每行一个章节，如"第一章：标题——剧情概要"\n4. 建议生成10章\n5. 只输出大纲，不要多余的解释`;
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+      body: JSON.stringify({ model: MODELS[currentModel], messages: [{ role: 'system', content: '你是一位专业的小说编辑，擅长规划章节结构。' }, { role: 'user', content: prompt }], max_tokens: 2000, temperature: 0.7 })
+    });
+    if (!res.ok) throw new Error('API 请求失败');
+    const d = await res.json();
+    const outline = d.choices?.[0]?.message?.content || '';
+    if (d.usage) { const u = d.usage; totalTokensUsed += u.total_tokens || 0; const costIn = 1 * (u.prompt_tokens||0) / 1000000; const costOut = 2 * (u.completion_tokens||0) / 1000000; totalTokensCost += costIn + costOut; sessionTokens += u.total_tokens || 0; sessionCost += costIn + costOut; sessionApiCalls++; }
+    outlineEl.value = outline;
+    showToast('✅ 大纲已生成，请审阅后保存');
+  } catch (err) {
+    showToast('❌ ' + (err.message || '生成失败'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '保存设定'; }
+  }
+}
+
 // ===== AI 自动为章节命名 =====
 async function suggestTitle(content, chapter) {
   try {
@@ -4349,8 +4411,11 @@ async function suggestTitle(content, chapter) {
     if (title && title.length < 30) {
       chapter.title = title;
       saveData();
-      renderWrite();
-      showToast('✅ 完成 · 自动命名：《' + title + '》');
+      // 只在当前页面是写作页且章节匹配时才刷新UI
+      if (currentPage === 'page-write' && getNovel()?.chapters[currentChapterId] === chapter) {
+        document.getElementById('writeTitle').textContent = chapter.title;
+        try { renderChapters(); } catch(e) {}
+      }
     }
   } catch(e) {}
 }
