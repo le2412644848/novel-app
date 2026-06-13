@@ -2870,11 +2870,11 @@ function updateShelfTabUI() {
   const utilityActions = document.getElementById('utilityActions');
   if (currentShelfTab === 'myworks') {
     if (shelfActions) shelfActions.innerHTML = '<button class="btn btn-primary" onclick="showNewNovelModal()" style="margin-top:10px;">+ 新建小说</button><button class="btn btn-secondary" onclick="document.getElementById(\'bookFileInput\').click()" style="width:100%;margin-top:8px;">📂 导入书籍（TXT/EPUB/PDF）</button><button class="btn btn-secondary" onclick="showAiOutlineModal()" style="width:100%;margin-top:6px;">✨ AI 定制大纲</button>';
-    if (searchBar) searchBar.style.display = novels.length > 3 ? 'flex' : 'none';
+    if (searchBar) searchBar.style.display = novels.length >= 1 ? 'flex' : 'none';
     if (utilityActions) utilityActions.style.display = 'flex';
   } else {
     if (shelfActions) shelfActions.innerHTML = '<button class="btn btn-secondary" onclick="document.getElementById(\'bookFileInput\').click()" style="width:100%;margin-top:10px;">📂 导入书籍（TXT/EPUB/PDF）</button><button class="btn btn-secondary" onclick="showOnlineSearch()" style="width:100%;margin-top:6px;">🔍 在线搜书</button><button class="btn btn-secondary" onclick="showImportUrlModal()" style="width:100%;margin-top:6px;">🔗 粘贴书源URL</button>';
-    if (searchBar) searchBar.style.display = importedBooks.length > 3 ? 'flex' : 'none';
+    if (searchBar) searchBar.style.display = importedBooks.length >= 1 ? 'flex' : 'none';
     if (utilityActions) utilityActions.style.display = 'none';
   }
 }
@@ -4184,7 +4184,7 @@ async function doImport() {
 }
 async function doImportData(data) {
   try {
-    // 清除旧数据
+    showToast('⏳ 正在清理旧数据…');
     const oldData = await dbLoad('novelWriterData');
     if (oldData?.novelsMeta) {
       for (const m of oldData.novelsMeta) {
@@ -4195,6 +4195,7 @@ async function doImportData(data) {
     let novelsMeta;
     if (data.novels && !data.novelsMeta) {
       // 旧格式：每个novel里直接有chapters
+      showToast('⏳ 检测到旧格式，正在转换 ' + data.novels.length + ' 篇小说…');
       novelsMeta = [];
       for (const n of data.novels) {
         const nid = n.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -4223,13 +4224,15 @@ async function doImportData(data) {
     } else {
       // 新格式：novelsMeta + 单独的novel_body_*
       novelsMeta = data.novelsMeta || [];
-      // 导入novel_body数据
+      const bodyCount = data._bodies ? Object.keys(data._bodies).length : 0;
+      showToast('⏳ 正在写入 ' + novelsMeta.length + ' 篇小说元数据' + (bodyCount ? ' + ' + bodyCount + ' 个正文' : '') + '…');
       if (data._bodies) {
         for (const [id, body] of Object.entries(data._bodies)) {
           await dbSave('novel_body_' + id, body);
         }
       }
     }
+    showToast('⏳ 正在保存…');
     await dbSave('novelWriterData', {
       novelsMeta,
       currentModel: data.currentModel, customPrompt: data.customPrompt,
@@ -4240,9 +4243,10 @@ async function doImportData(data) {
       readerSkin: data.readerSkin, readerFontSize: data.readerFontSize,
       readerLineHeight: data.readerLineHeight, readerBrightness: data.readerBrightness
     });
-    location.reload();
+    showToast('✅ 导入完成，正在刷新…');
+    setTimeout(() => location.reload(), 300);
   } catch(err) {
-    showToast('❌ 导入失败：' + err.message);
+    showToast('❌ 导入失败（' + err.message + '）');
   }
 }
 function importAllData(event) {
@@ -4761,45 +4765,86 @@ async function parseEpub(buffer, filename) {
       }
     }
 
-    // --- 第一遍：解析ZIP local file headers，收集所有条目 ---
+    // --- 解析ZIP条目：优先用中央目录（更可靠），回退到扫描local headers ---
     const entries = [];
-    let offset = 0;
-    while (offset < arr.length - 30) {
-      const sig = view.getUint32(offset, true);
-      if (sig !== 0x04034b50) { offset++; continue; }
 
-      const gpFlag = view.getUint16(offset + 6, true);
-      const compMethod = view.getUint16(offset + 8, true);
-      let compSize = view.getUint32(offset + 20, true);
-      let uncompSize = view.getUint32(offset + 24, true);
-      const nameLen = view.getUint16(offset + 26, true);
-      const extraLen = view.getUint16(offset + 28, true);
-      const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
-      let name = utf8dec.decode(nameBytes);
-      // 清理文件名（有些EPUB有前缀斜杠或反斜杠）
-      name = name.replace(/\\/g, '/').replace(/^\/+/, '');
+    // 找到 End of Central Directory Record (EOCD): 签名 0x06054b50
+    let eocdOffset = -1;
+    for (let i = arr.length - 22; i >= Math.max(0, arr.length - 66000); i--) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
+    }
 
-      const dataOffset = offset + 30 + nameLen + extraLen;
+    if (eocdOffset >= 0) {
+      // 从EOCD读取中央目录
+      const cdOffset = view.getUint32(eocdOffset + 16, true);
+      const cdSize = view.getUint16(eocdOffset + 12, true);
+      let pos = cdOffset;
+      const cdEnd = Math.min(cdOffset + cdSize, arr.length);
 
-      // 处理 data descriptor：bit 3 设置时header中compSize可能为0
-      if ((gpFlag & 0x0008) && compSize === 0) {
-        let searchPos = dataOffset;
-        while (searchPos < arr.length - 4) {
-          const nextSig = view.getUint32(searchPos, true);
-          if (nextSig === 0x04034b50 || nextSig === 0x02014b50 || nextSig === 0x06054b50) {
-            compSize = searchPos - dataOffset;
-            break;
+      while (pos < cdEnd - 46) {
+        const sig = view.getUint32(pos, true);
+        if (sig !== 0x02014b50) break; // 中央目录条目签名
+        const compMethod = view.getUint16(pos + 10, true);
+        const compSize = view.getUint32(pos + 20, true);
+        const nameLen = view.getUint16(pos + 28, true);
+        const extraLen = view.getUint16(pos + 30, true);
+        const commentLen = view.getUint16(pos + 32, true);
+        const localHeaderOffset = view.getUint32(pos + 42, true);
+        const nameBytes = new Uint8Array(buffer, pos + 46, nameLen);
+        let name = utf8dec.decode(nameBytes).replace(/\\/g, '/').replace(/^\/+/, '');
+
+        if (name.length > 0 && localHeaderOffset < arr.length) {
+          // 从local header读取实际dataOffset
+          const lhNameLen = view.getUint16(localHeaderOffset + 26, true);
+          const lhExtraLen = view.getUint16(localHeaderOffset + 28, true);
+          const dataOffset = localHeaderOffset + 30 + lhNameLen + lhExtraLen;
+          let actualCompSize = compSize;
+          // 如果local header中compSize为0但中央目录有值
+          if (actualCompSize === 0) {
+            actualCompSize = view.getUint32(localHeaderOffset + 20, true);
           }
-          searchPos++;
+          if (actualCompSize > 0 && actualCompSize < 10 * 1024 * 1024) {
+            entries.push({ name, dataOffset, compMethod, compSize: actualCompSize });
+          }
         }
-        if (compSize === 0) compSize = arr.length - dataOffset;
+        pos += 46 + nameLen + extraLen + commentLen;
       }
+    }
 
-      if (compSize > 0 && compSize < 10 * 1024 * 1024 && name.length > 0) {
-        entries.push({ name, dataOffset, compMethod, compSize, uncompSize });
+    // 如果中央目录解析不到条目，回退到逐字节扫描local headers
+    if (entries.length === 0) {
+      let offset = 0;
+      while (offset < arr.length - 30) {
+        const sig = view.getUint32(offset, true);
+        if (sig !== 0x04034b50) { offset++; continue; }
+        const gpFlag = view.getUint16(offset + 6, true);
+        const compMethod = view.getUint16(offset + 8, true);
+        let compSize = view.getUint32(offset + 20, true);
+        const nameLen = view.getUint16(offset + 26, true);
+        const extraLen = view.getUint16(offset + 28, true);
+        const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
+        let name = utf8dec.decode(nameBytes).replace(/\\/g, '/').replace(/^\/+/, '');
+        const dataOffset = offset + 30 + nameLen + extraLen;
+        if ((gpFlag & 0x0008) && compSize === 0) {
+          let searchPos = dataOffset;
+          while (searchPos < arr.length - 4) {
+            const nextSig = view.getUint32(searchPos, true);
+            if (nextSig === 0x04034b50 || nextSig === 0x02014b50 || nextSig === 0x06054b50) {
+              compSize = searchPos - dataOffset;
+              break;
+            }
+            searchPos++;
+          }
+          if (compSize === 0) compSize = arr.length - dataOffset;
+        }
+        if (compSize > 0 && compSize < 10 * 1024 * 1024 && name.length > 0) {
+          entries.push({ name, dataOffset, compMethod, compSize });
+        }
+        offset = dataOffset + compSize;
       }
-
-      offset = dataOffset + compSize;
     }
 
     // --- 第二遍：解压所有deflate条目 ---
