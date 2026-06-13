@@ -12,48 +12,48 @@
 <link rel="manifest" href="./manifest.json">
 <style>
 :root {
-  --bg: #080b10;
-  --bg2: #0e1320;
-  --card: #131a2b;
-  --card2: #1a2340;
-  --border: #232d45;
-  --text: #e8edf5;
-  --text2: #8895b4;
-  --text3: #556080;
-  --accent: #7c94ff;
-  --accent2: #4de8a0;
-  --accent3: #f5a840;
+  --bg: #0a0e15;
+  --bg2: #111827;
+  --card: #1a2235;
+  --card2: #1f2a40;
+  --border: #2a3350;
+  --text: #f0f2f8;
+  --text2: #8b95b8;
+  --text3: #5a6588;
+  --accent: #f07c3c;
+  --accent2: #f5a623;
+  --accent3: #e85d75;
   --danger: #f05070;
-  --radius: 16px;
+  --radius: 14px;
   --radius-sm: 10px;
-  --shadow: 0 8px 40px rgba(0,0,0,.45);
-  --glass: rgba(19,26,43,.75);
+  --shadow: 0 8px 40px rgba(0,0,0,.5);
+  --glass: rgba(26,34,53,.8);
   --glass-border: rgba(255,255,255,.06);
-  --backdrop: blur(18px) saturate(130%);
+  --backdrop: blur(20px) saturate(140%);
 }
 [data-theme="light"] {
-  --bg: #f0f3f8;
-  --bg2: #e4e8f0;
+  --bg: #f5f6f9;
+  --bg2: #ebeef3;
   --card: #ffffff;
-  --card2: #f5f7fa;
-  --border: #dce0e8;
-  --text: #1a1d28;
-  --text2: #5a6278;
-  --text3: #8b90a8;
-  --accent: #4c63d6;
-  --accent2: #28a06b;
-  --accent3: #c87c10;
+  --card2: #f7f8fa;
+  --border: #e4e7ed;
+  --text: #1a1d2e;
+  --text2: #6b7188;
+  --text3: #9ba0b8;
+  --accent: #f07c3c;
+  --accent2: #f5a623;
+  --accent3: #e85d75;
   --danger: #e34458;
-  --shadow: 0 4px 24px rgba(0,0,0,.06);
-  --glass: rgba(255,255,255,.8);
+  --shadow: 0 4px 24px rgba(0,0,0,.08);
+  --glass: rgba(255,255,255,.85);
   --glass-border: rgba(0,0,0,.06);
-  --backdrop: blur(18px) saturate(130%);
+  --backdrop: blur(20px) saturate(140%);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
   font-family: -apple-system, "PingFang SC", "Noto Serif SC", "Source Han Serif SC", "Microsoft YaHei", serif;
   background: var(--bg);
-  background-image: radial-gradient(ellipse at 50% 0%, rgba(124,148,255,.04) 0%, transparent 60%),
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(240,124,60,.04) 0%, transparent 60%),
                     radial-gradient(ellipse at 80% 100%, rgba(77,232,160,.03) 0%, transparent 50%);
   color: var(--text);
   min-height: 100vh;
@@ -66,7 +66,7 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at 20% 20%, rgba(124,148,255,.015) 0%, transparent 50%),
+  background: radial-gradient(circle at 20% 20%, rgba(240,124,60,.015) 0%, transparent 50%),
               radial-gradient(circle at 80% 80%, rgba(77,232,160,.01) 0%, transparent 50%);
   pointer-events: none;
   z-index: -1;
@@ -157,7 +157,7 @@ body::before {
 .model-switch button.active {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(108,140,255,.35);
+  box-shadow: 0 2px 8px rgba(240,124,60,.35);
 }
 .btn {
   display: inline-flex;
@@ -173,10 +173,10 @@ body::before {
   transition: all .2s;
 }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent), #4a6fe0);
+  background: linear-gradient(135deg, var(--accent), #e06a30);
   color: #fff;
   width: 100%;
-  box-shadow: 0 4px 14px rgba(108,140,255,.25);
+  box-shadow: 0 4px 14px rgba(240,124,60,.25);
 }
 .btn-primary:hover { transform: translateY(-1px); }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
@@ -214,7 +214,7 @@ body::before {
 .card .meta { font-size: 13px; color: var(--text2); line-height: 1.5; }
 .card .tag {
   display: inline-block;
-  background: rgba(108,140,255,.12);
+  background: rgba(240,124,60,.12);
   color: var(--accent);
   padding: 2px 12px;
   border-radius: 20px;
@@ -332,7 +332,7 @@ body::before {
   width: 48px; height: 48px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, var(--accent), #4a6fe0);
+  background: linear-gradient(135deg, var(--accent), #e06a30);
   color: #fff;
   font-size: 18px;
   cursor: pointer;
@@ -340,7 +340,7 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 3px 12px rgba(108,140,255,.3);
+  box-shadow: 0 3px 12px rgba(240,124,60,.3);
   transition: all .2s;
 }
 .input-section .input-row .send-btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -391,7 +391,7 @@ body::before {
   font-weight: 700;
   margin-bottom: 4px;
 }
-.model-badge.flash { background: rgba(108,140,255,.15); color: var(--accent); }
+.model-badge.flash { background: rgba(240,124,60,.15); color: var(--accent); }
 .model-badge.pro { background: rgba(240,168,64,.15); color: var(--accent3); }
 .wordcount-bar {
   display: flex;
@@ -472,7 +472,7 @@ body::before {
 }
 .style-tags .tag-btn.selected {
   border-color: var(--accent);
-  background: rgba(108,140,255,.12);
+  background: rgba(240,124,60,.12);
   color: var(--accent);
   font-weight: 600;
 }
@@ -537,7 +537,7 @@ body::before {
 .prompt-editor .prompt-info { font-size: 12px; color: var(--text3); margin-bottom: 8px; line-height: 1.5; }
 .prompt-editor .prompt-vars { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .prompt-editor .prompt-vars .var-tag {
-  background: rgba(108,140,255,.1);
+  background: rgba(240,124,60,.1);
   color: var(--accent);
   padding: 2px 10px;
   border-radius: 8px;
@@ -579,22 +579,22 @@ body::before {
   font-size: 10px;
   font-weight: 500;
   cursor: pointer;
-  padding: 6px 14px;
-  border-radius: 12px;
+  padding: 6px 16px;
+  border-radius: 14px;
   transition: all .2s;
   font-family: inherit;
-  min-width: 56px;
+  min-width: 60px;
 }
-.bottom-nav .nav-item .nav-icon { font-size: 20px; transition: transform .2s; }
-.bottom-nav .nav-item.active { color: var(--accent); }
+.bottom-nav .nav-item .nav-icon { font-size: 22px; transition: transform .2s; }
+.bottom-nav .nav-item.active { color: var(--accent); font-weight: 700; }
 .bottom-nav .nav-item.active .nav-icon { transform: scale(1.1); }
-.bottom-nav .nav-item:active { background: rgba(124,148,255,.1); }
+.bottom-nav .nav-item:active { background: rgba(240,124,60,.1); }
 /* ripple */
 @keyframes ripple { to { transform: scale(4); opacity: 0; } }
 .ripple-effect {
   position: absolute;
   border-radius: 50%;
-  background: rgba(124,148,255,.2);
+  background: rgba(240,124,60,.2);
   width: 40px; height: 40px;
   animation: ripple .6s linear;
   pointer-events: none;
@@ -604,50 +604,71 @@ body::before {
   display: flex;
   gap: 0;
   background: var(--card);
-  border-radius: 12px;
-  padding: 3px;
+  border-radius: 14px;
+  padding: 4px;
   border: 1px solid var(--border);
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .shelf-tabs button {
   flex: 1;
   border: none;
   background: transparent;
-  color: var(--text3);
-  padding: 8px;
-  border-radius: 10px;
-  font-size: 13px;
+  color: var(--text2);
+  padding: 10px 8px;
+  border-radius: 11px;
+  font-size: 14px;
   cursor: pointer;
   font-weight: 600;
-  transition: all .2s;
+  transition: all .25s;
   font-family: inherit;
+  letter-spacing: 0.3px;
 }
 .shelf-tabs button.active {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
   color: #fff;
+  box-shadow: 0 2px 10px rgba(240,124,60,.3);
 }
 /* ===== 书架书籍卡片 ===== */
 .shelf-card {
   display: flex;
   gap: 14px;
   align-items: center;
+  padding: 16px;
 }
 .shelf-cover {
-  width: 54px; height: 72px;
-  border-radius: 6px;
+  width: 66px; height: 88px;
+  border-radius: 8px;
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
-  color: rgba(255,255,255,.85);
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  color: rgba(255,255,255,.9);
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  position: relative;
+  overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.shelf-cover::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.15) 0%, transparent 40%, rgba(0,0,0,.2) 100%);
+  pointer-events: none;
+}
+.shelf-cover .cover-label {
+  font-size: 9px;
+  font-weight: 500;
+  opacity: .7;
+  margin-top: 2px;
 }
 .shelf-info { flex:1; min-width:0; }
-.shelf-info .shelf-title { font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.shelf-info .shelf-meta { font-size:12px; color:var(--text3); margin-top:2px; }
-.shelf-info .shelf-progress { font-size:11px; color:var(--accent2); margin-top:2px; }
+.shelf-info .shelf-title { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.3px; }
+.shelf-info .shelf-meta { font-size: 12px; color: var(--text3); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+.shelf-info .shelf-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text3); }
+.shelf-info .shelf-progress { font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 500; }
 /* ===== 搜索栏 ===== */
 .search-bar {
   display: flex;
@@ -791,7 +812,7 @@ body::before {
   cursor: pointer;
   transition: all .2s;
 }
-.reader-menu .skin-dot.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,148,255,.2); }
+.reader-menu .skin-dot.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(240,124,60,.2); }
 .reader-menu .skin-dot.white { background: #f5f3ee; }
 .reader-menu .skin-dot.cream { background: #faf3e0; }
 .reader-menu .skin-dot.green { background: #d5e4cd; }
@@ -882,7 +903,7 @@ body::before {
   border-radius: 50%;
   font-size: 18px;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(108,140,255,.35);
+  box-shadow: 0 4px 14px rgba(240,124,60,.35);
 }
 /* ===== 写作方向输入 ===== */
 .direction-row {
@@ -996,7 +1017,7 @@ body::before {
 }
 .cover-color-picker .color-dot.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(124,148,255,.2);
+  box-shadow: 0 0 0 4px rgba(240,124,60,.2);
   transform: scale(1.15);
 }
 /* ===== 书架卡片操作按钮 ===== */
@@ -1022,13 +1043,14 @@ body::before {
 /* ===== 最近阅读标记 ===== */
 .recent-badge {
   display: inline-block;
-  background: rgba(77,232,160,.15);
-  color: var(--accent2);
-  padding: 1px 8px;
-  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 10px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   margin-left: 6px;
+  letter-spacing: 0.5px;
 }
 /* ===== 书架更多菜单 ===== */
 .shelf-card { position: relative; }
@@ -1087,8 +1109,8 @@ body::before {
   animation: pulse-tts 1.2s ease-in-out infinite;
 }
 @keyframes pulse-tts {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(124,148,255,.4); }
-  50% { box-shadow: 0 0 0 8px rgba(124,148,255,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,124,60,.4); }
+  50% { box-shadow: 0 0 0 8px rgba(240,124,60,0); }
 }
 
 /* ===== 阅读时间估算 ===== */
@@ -1113,10 +1135,10 @@ body::before {
   transition: transform .15s;
 }
 .heatmap-cell:hover { transform: scale(1.5); z-index: 1; }
-.heatmap-cell[data-level="1"] { background: rgba(124,148,255,.25); }
-.heatmap-cell[data-level="2"] { background: rgba(124,148,255,.45); }
-.heatmap-cell[data-level="3"] { background: rgba(124,148,255,.65); }
-.heatmap-cell[data-level="4"] { background: rgba(124,148,255,.9); }
+.heatmap-cell[data-level="1"] { background: rgba(240,124,60,.25); }
+.heatmap-cell[data-level="2"] { background: rgba(240,124,60,.45); }
+.heatmap-cell[data-level="3"] { background: rgba(240,124,60,.65); }
+.heatmap-cell[data-level="4"] { background: rgba(240,124,60,.9); }
 
 /* ===== 每日目标环 ===== */
 .goal-ring-wrap {
@@ -1344,8 +1366,9 @@ body::before {
 }
 .source-card:hover { border-color: var(--accent); background: var(--bg2); }
 .source-card-active { border-color: var(--accent); background: rgba(99,102,241,0.1); }
-.source-card-name { font-weight: 600; color: var(--text); }
+.source-card-name { font-weight: 600; color: var(--text); font-size: 14px; }
 .source-card-url { font-size: 10px; color: var(--text3); max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-card-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
 .os-source-tag { font-size: 10px; color: var(--accent); font-weight: 400; }
 
 /* ===== 在线章节列表项 ===== */
@@ -2165,7 +2188,7 @@ body::before {
 <div class="modal-overlay" id="onlineSearchModal">
   <div class="modal" style="max-width:520px;">
     <h2>🔍 在线搜书</h2>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">输入书名后点击书源 → 在新标签页打开搜索结果</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">输入书名 → 点书源 → 新标签页打开搜索（秒开，无需代理）</p>
     <div style="display:flex;gap:8px;margin-bottom:10px;">
       <input type="text" id="onlineSearchInput" placeholder="输入书名..." onkeydown="if(event.key==='Enter')openSourceSearch(0)" style="flex:1;" autofocus>
       <button class="btn btn-primary" onclick="openSourceSearch(0)">🔗 打开搜索</button>
@@ -2173,7 +2196,7 @@ body::before {
     <div id="sourceGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:55vh;overflow-y:auto;"></div>
     <details style="margin-top:10px;font-size:12px;color:var(--text3);">
       <summary style="cursor:pointer;">💡 找到书后如何加入书架？</summary>
-      <p style="margin-top:6px;">在网站找到书籍后，复制书籍目录页 URL，回到「书架」tab → 点「📂 导入书籍」→ 「粘贴书源URL」，即可下载全部章节。</p>
+      <p style="margin-top:6px;">在网站找到想要的书籍后，复制该书的<b>目录页URL</b> → 回到「书架」tab → 点「🔗 粘贴书源URL」→ 自动下载全部章节。<br><small style="color:var(--text3);">💡 运行 server.py 可享受本地代理加速下载</small></p>
     </details>
     <div class="btn-group" style="margin-top:8px;">
       <button class="btn btn-secondary" onclick="closeModal('onlineSearchModal')">关闭</button>
@@ -2235,18 +2258,18 @@ let readerBrightness = 100;
 
 // ===== 随机封面颜色 =====
 const COVER_GRADIENTS = [
-  'linear-gradient(135deg,#667eea,#764ba2)',
-  'linear-gradient(135deg,#f093fb,#f5576c)',
-  'linear-gradient(135deg,#4facfe,#00f2fe)',
-  'linear-gradient(135deg,#43e97b,#38f9d7)',
-  'linear-gradient(135deg,#fa709a,#fee140)',
-  'linear-gradient(135deg,#a18cd1,#fbc2eb)',
-  'linear-gradient(135deg,#fccb90,#d57eeb)',
-  'linear-gradient(135deg,#e0c3fc,#8ec5fc)',
-  'linear-gradient(135deg,#f5576c,#ff6f3f)',
-  'linear-gradient(135deg,#667eea,#4c63d6)',
-  'linear-gradient(135deg,#2af598,#009efd)',
-  'linear-gradient(135deg,#ffecd2,#fcb69f)',
+  'linear-gradient(160deg,#e85d3a,#d4386a)',
+  'linear-gradient(160deg,#5b7fff,#8b3fd4)',
+  'linear-gradient(160deg,#2d9c6e,#1a6b4a)',
+  'linear-gradient(160deg,#e8983e,#d45a2a)',
+  'linear-gradient(160deg,#6366f1,#8b5cf6)',
+  'linear-gradient(160deg,#0891b2,#0e7490)',
+  'linear-gradient(160deg,#db2777,#be185d)',
+  'linear-gradient(160deg,#f59e0b,#d97706)',
+  'linear-gradient(160deg,#7c3aed,#6d28d9)',
+  'linear-gradient(160deg,#059669,#047857)',
+  'linear-gradient(160deg,#ea580c,#c2410c)',
+  'linear-gradient(160deg,#2563eb,#1d4ed8)',
 ];
 
 const DEFAULT_PROMPT = `你是一位专业的小说写作助手。正在写一部{style}风格的小说。
@@ -4880,7 +4903,7 @@ function generatePoster() {
   ctx.fillRect(0, 0, 600, 900);
 
   // Accent decorations
-  ctx.fillStyle = 'rgba(124,148,255,0.06)';
+  ctx.fillStyle = 'rgba(240,124,60,0.06)';
   ctx.beginPath();
   ctx.arc(500, 150, 300, 0, Math.PI * 2);
   ctx.fill();
@@ -4896,7 +4919,7 @@ function generatePoster() {
   ctx.fillText(n.title.length > 12 ? n.title.slice(0, 12) + '…' : n.title, 300, 320);
 
   // Style tag
-  ctx.fillStyle = 'rgba(124,148,255,0.8)';
+  ctx.fillStyle = 'rgba(240,124,60,0.8)';
   ctx.font = '20px "PingFang SC","Microsoft YaHei",serif';
   ctx.fillText(n.style, 300, 370);
 
@@ -6262,14 +6285,12 @@ function openCharDialogue() {
 
 // ===== 在线书源搜索 =====
 const BOOK_SOURCES = [
-  { name: '笔趣格', baseUrl: 'https://www.ibiquge.com', searchUrl: 'https://www.ibiquge.com/search/?keyword={query}' },
-  { name: '全本小说网', baseUrl: 'https://www.quanben.io', searchUrl: 'https://www.quanben.io/search?keyword={query}' },
-  { name: '新笔趣阁', baseUrl: 'https://www.xbiquge.com', searchUrl: 'https://www.xbiquge.com/search.php?keyword={query}' },
-  { name: '69书吧', baseUrl: 'https://www.69shuba.cx', searchUrl: 'https://www.69shuba.cx/search?keyword={query}' },
-  { name: '笔趣阁文学', baseUrl: 'https://www.biquwx.com', searchUrl: 'https://www.biquwx.com/search.php?keyword={query}' },
-  { name: '书趣阁', baseUrl: 'https://www.shuquge.com', searchUrl: 'https://www.shuquge.com/search.html?keyword={query}' },
+  { name: '必应搜索', baseUrl: 'https://www.bing.com', searchUrl: 'https://www.bing.com/search?q={query}+小说' },
+  { name: '起点中文网', baseUrl: 'https://www.qidian.com', searchUrl: 'https://www.qidian.com/search?kw={query}' },
+  { name: '番茄小说', baseUrl: 'https://fanqienovel.com', searchUrl: 'https://fanqienovel.com/search?keyword={query}' },
+  { name: '七猫小说', baseUrl: 'https://www.qimao.com', searchUrl: 'https://www.qimao.com/search/index?keyword={query}' },
   { name: '笔趣阁', baseUrl: 'https://www.biquge.com', searchUrl: 'https://www.biquge.com/search.php?keyword={query}' },
-  { name: '笔趣阁2', baseUrl: 'https://www.biquge.info', searchUrl: 'https://www.biquge.info/search.php?keyword={query}' }
+  { name: '69书吧', baseUrl: 'https://www.69shuba.com', searchUrl: 'https://www.69shuba.com/search?keyword={query}' }
 ];
 
 let _onlineChapters = [];
@@ -6284,10 +6305,21 @@ function showOnlineSearch() {
 
 function renderSourceGrid() {
   const grid = document.getElementById('sourceGrid');
+  const descMap = {
+    '必应搜索': '搜索引擎 · 最全',
+    '起点中文网': '正版付费 · 质量高',
+    '番茄小说': '免费阅读 · 量大',
+    '七猫小说': '免费 · 热门书多',
+    '笔趣阁': '经典盗版源 · 全',
+    '69书吧': '老牌书源 · 稳定'
+  };
   grid.innerHTML = BOOK_SOURCES.map((src, i) =>
     '<div class="source-card" onclick="openSourceSearch(' + i + ')" title="在' + src.name + '搜索">' +
-      '<span class="source-card-name">📚 ' + esc(src.name) + '</span>' +
-      '<span class="source-card-url">' + esc(src.baseUrl.replace('https://www.','')) + ' →</span>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div class="source-card-name">' + esc(src.name) + '</div>' +
+        '<div class="source-card-desc">' + (descMap[src.name] || '打开搜索页') + '</div>' +
+      '</div>' +
+      '<span style="font-size:18px;flex-shrink:0;">→</span>' +
     '</div>'
   ).join('');
 }
@@ -6452,16 +6484,17 @@ async function importBookFromUrl() {
 
 // ===== CORS 代理（仅用于URL导入时获取章节） =====
 const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?'
+  './proxy?url=',           // 本地代理（需要 server.py）
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url='
 ];
 
 async function fetchWithCORS(url, idx) {
-  if (idx >= CORS_PROXIES.length) throw new Error('代理不可用');
+  if (idx >= CORS_PROXIES.length) throw new Error('所有代理不可用');
   try {
     const proxyUrl = CORS_PROXIES[idx] + encodeURIComponent(url);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const resp = await fetch(proxyUrl, { signal: controller.signal });
     clearTimeout(timeout);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -6469,6 +6502,7 @@ async function fetchWithCORS(url, idx) {
     if (!text || text.length < 100) throw new Error('响应太短');
     return text;
   } catch(e) {
+    if (idx === 0) console.log('本地代理不可用，尝试在线代理...');
     return fetchWithCORS(url, idx + 1);
   }
 }
