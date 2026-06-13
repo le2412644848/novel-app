@@ -3589,9 +3589,9 @@ function updateReaderToc() {
 function readerGoToChapter(idx) {
   if (!readerBook) return;
   readerBook.chapterIndex = idx;
-  // Save reading position for imported books
+  // Save reading position for all book types
   const book = getReaderBook();
-  if (book && readerBook.type === 'imported') {
+  if (book) {
     book.currentPosition = { chapterIndex: idx, scrollPercent: 0 };
     book.readingProgress = Math.round((idx / Math.max(1, book.chapters.length - 1)) * 100);
     saveData();
@@ -3677,11 +3677,12 @@ function applyReaderBrightness(val) {
 
 // ===== 阅读位置记忆 =====
 document.getElementById('readerContent').addEventListener('scroll', function() {
-  if (!readerBook || readerBook.type !== 'imported') return;
-  const book = importedBooks[readerBook.bookIndex];
+  if (!readerBook) return;
+  const book = getReaderBook();
   if (!book) return;
   const el = this;
   const pct = el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight);
+  if (!book.currentPosition) book.currentPosition = {};
   book.currentPosition = {
     chapterIndex: readerBook.chapterIndex,
     scrollPercent: Math.round(pct * 100)
