@@ -4839,57 +4839,17 @@ function parseEpub(buffer, filename) {
   }
 }
 
-// ===== PDF 文本提取（支持FlateDecode压缩流、CID字体、ToUnicode CMap） =====
+// ===== PDF 文本提取（支持FlateDecode压缩流、CID字体） =====
 async function parsePdf(buffer, filename) {
   try {
     const arr = new Uint8Array(buffer);
     let text = '';
+    let streamCount = 0, decompressedCount = 0;
 
-    // 把整个文件转为latin1字符串用来正则解析结构
-    const latin1 = Array.from(arr).map(b => String.fromCharCode(b)).join('');
-    const pdfText = new TextDecoder('utf-8').decode(arr);
-
-    // --- 解析对象定义和xref ---
-    // 找到所有间接对象: "1 0 obj ... endobj"
-    const objects = {};
-    const objRe = /(\d+)\s+(\d+)\s+obj\s*([\s\S]*?)\s*endobj/g;
-    let m;
-    while ((m = objRe.exec(latin1)) !== null) {
-      objects[m[1] + '_' + m[2]] = m[3];
-    }
-
-    // 解析stream对象的字典部分（提取Filter等元信息）
-    function parseStreamDictAndData(rawObj) {
-      const streamIdx = rawObj.indexOf('stream');
-      if (streamIdx === -1) return { dict: rawObj, data: null, filter: null };
-      const dictPart = rawObj.slice(0, streamIdx);
-      let dataStart = streamIdx + 6;
-      if (rawObj[dataStart] === '\r') dataStart++;
-      if (rawObj[dataStart] === '\n') dataStart++;
-      const endstreamIdx = rawObj.lastIndexOf('endstream');
-      const data = (endstreamIdx > dataStart) ? rawObj.slice(dataStart, endstreamIdx) : '';
-      // 提取Filter
-      let filter = null;
-      const fm = dictPart.match(/\/Filter\s*(\/\w+|\s*\[[\s\S]*?\])/);
-      if (fm) {
-        filter = fm[1].replace(/^\//, '').replace(/[\[\]]/g, '').trim();
-      }
-      // 提取Length
-      let len = null;
-      const lm = dictPart.match(/\/Length\s+(\d+)/);
-      if (lm) len = parseInt(lm[1]);
-      // 如果指定了Length，截断数据
-      let dataBytes = data;
-      if (len && len < data.length) dataBytes = data.slice(0, len);
-      return { dict: dictPart, data: dataBytes, filter };
-    }
-
-    // --- FlateDecode 解压 ---
-    async function inflate(dataStr) {
+    // --- 解压函数：先尝试 zlib-wrapped deflate，失败则尝试 raw deflate ---
+    async function inflateBytes(bytes) {
+      // 尝试 deflate (zlib-wrapped)
       try {
-        // 将latin1字符串转回字节数组
-        const bytes = new Uint8Array(dataStr.length);
-        for (let i = 0; i < dataStr.length; i++) bytes[i] = dataStr.charCodeAt(i);
         const ds = new DecompressionStream('deflate');
         const writer = ds.writable.getWriter();
         const reader = ds.readable.getReader();
@@ -4901,177 +4861,169 @@ async function parsePdf(buffer, filename) {
           if (done) break;
           chunks.push(value);
         }
-        // 合并所有chunks
         const totalLen = chunks.reduce((s, c) => s + c.length, 0);
         const result = new Uint8Array(totalLen);
         let offset = 0;
         for (const c of chunks) { result.set(c, offset); offset += c.length; }
-        return new TextDecoder('utf-8').decode(result);
+        return result;
       } catch(e) {
-        return null;
+        // deflate 失败，尝试 deflate-raw（裸 deflate，无 zlib 头）
+        try {
+          const ds = new DecompressionStream('deflate-raw');
+          const writer = ds.writable.getWriter();
+          const reader = ds.readable.getReader();
+          writer.write(bytes);
+          writer.close();
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+          const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+          const result = new Uint8Array(totalLen);
+          let offset = 0;
+          for (const c of chunks) { result.set(c, offset); offset += c.length; }
+          return result;
+        } catch(e2) {
+          return null;
+        }
       }
     }
 
-    // --- 从内容流提取文本 (BT/ET blocks) ---
+    // --- 从内容提取文本 (BT/ET blocks + hex text) ---
     function extractTextFromContent(content) {
       let t = '';
-      // 处理 BT ... ET 块
-      const btRe = /\bBT\b([\s\S]*?)\bET\b/g;
+      const btRe = /BT([\s\S]*?)ET/g;
       let bm;
       while ((bm = btRe.exec(content)) !== null) {
         const block = bm[1];
         // Tj: (text) Tj
         for (const tm of block.matchAll(/\(([^)]*)\)\s*Tj/g)) {
-          t += decodePdfString(tm[1]) + '\n';
+          t += decodePdfString(tm[1]);
         }
         // TJ: [(text) num (text) ...] TJ
         for (const tm of block.matchAll(/\[([^\]]*)\]\s*TJ/g)) {
-          const inner = tm[1];
-          for (const sm of inner.matchAll(/\(([^)]*)\)/g)) {
+          for (const sm of tm[1].matchAll(/\(([^)]*)\)/g)) {
             t += decodePdfString(sm[1]);
           }
-          t += '\n';
         }
         // ': (text) '
         for (const tm of block.matchAll(/\(([^)]*)\)\s*'/g)) {
-          t += decodePdfString(tm[1]) + '\n';
+          t += decodePdfString(tm[1]);
         }
-        // 处理 <hex> Tj (CID字体常用)
+        // <hex> Tj (CID/Type0字体)
         for (const tm of block.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) {
           const hex = tm[1];
           let hexStr = '';
           for (let i = 0; i < hex.length; i += 4) {
             const code = parseInt(hex.slice(i, i + 4), 16);
-            if (code > 0x4E00 && code < 0x9FFF) hexStr += String.fromCharCode(code);
+            if (code >= 0x4E00 && code <= 0x9FFF) hexStr += String.fromCharCode(code);
+            else if (code >= 0x3000 && code <= 0x303F) hexStr += String.fromCharCode(code); // CJK标点
+            else if (code >= 0xFF00 && code <= 0xFFEF) hexStr += String.fromCharCode(code); // 全角
+            else if (code >= 0x20 && code <= 0x7E) hexStr += String.fromCharCode(code); // ASCII
           }
-          if (hexStr) t += hexStr + '\n';
+          if (hexStr.replace(/\s/g, '')) t += hexStr;
         }
+        t += '\n';
       }
       return t;
     }
 
-    // --- 解析ToUnicode CMap ---
-    function parseToUnicodeCMap(cmapStream) {
-      const map = {};
-      const bfRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
-      let bm;
-      while ((bm = bfRe.exec(cmapStream)) !== null) {
-        const key = parseInt(bm[1], 16);
-        const val = parseInt(bm[2], 16);
-        map[key] = val;
+    // --- Strategy 1: 直接找所有 stream...endstream 块，解压并提取 ---
+    // 用字节方式扫描，避免 latin1 字符串的种种问题
+    const STREAM = [115, 116, 114, 101, 97, 109]; // "stream"
+    const ENDSTREAM = [101, 110, 100, 115, 116, 114, 101, 97, 109]; // "endstream"
+    let pos = 0;
+    while (pos < arr.length - 20) {
+      const sIdx = findBytes(arr, STREAM, pos);
+      if (sIdx === -1) break;
+      // 确保 "stream" 前面是换行符（避免匹配到内容中的 stream）
+      const before = sIdx > 0 ? arr[sIdx - 1] : 0;
+      if (before !== 10 && before !== 13 && sIdx > 5) {
+        pos = sIdx + 6;
+        continue;
       }
-      // bfrange: <start> <end> <offset>
-      const rangeRe = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g;
-      while ((bm = rangeRe.exec(cmapStream)) !== null) {
-        const start = parseInt(bm[1], 16);
-        const end = parseInt(bm[2], 16);
-        const offset = parseInt(bm[3], 16);
-        for (let c = start; c <= end; c++) {
-          map[c] = c + offset;
-        }
-      }
-      return map;
-    }
-
-    // 收集所有ToUnicode CMap
-    const toUnicodeMaps = {};
-    for (const [key, rawObj] of Object.entries(objects)) {
-      if (rawObj.includes('/ToUnicode')) {
-        const { data } = parseStreamDictAndData(rawObj);
-        if (data) {
-          const cmapData = await inflate(data);
-          if (cmapData) {
-            toUnicodeMaps[key] = parseToUnicodeCMap(cmapData);
-          } else {
-            // 未压缩的CMap
-            toUnicodeMaps[key] = parseToUnicodeCMap(data);
+      let dataStart = sIdx + 6;
+      if (arr[dataStart] === 13) dataStart++;
+      if (arr[dataStart] === 10) dataStart++;
+      const eIdx = findBytes(arr, ENDSTREAM, dataStart);
+      if (eIdx === -1) break;
+      streamCount++;
+      const bytes = arr.slice(dataStart, eIdx);
+      // 尝试解压
+      if (bytes.length > 10) {
+        const decompressed = await inflateBytes(bytes);
+        if (decompressed) {
+          decompressedCount++;
+          const content = new TextDecoder('utf-8').decode(decompressed);
+          const extracted = extractTextFromContent(content);
+          if (extracted.replace(/\s/g, '').length > 10) {
+            text += extracted + '\n\n';
           }
+        } else {
+          // 未压缩或解压失败，直接解码
+          try {
+            const content = new TextDecoder('utf-8').decode(bytes);
+            if (content.includes('BT') && content.includes('ET')) {
+              const extracted = extractTextFromContent(content);
+              if (extracted.replace(/\s/g, '').length > 10) {
+                text += extracted + '\n\n';
+              }
+            }
+          } catch(e) {}
         }
       }
+      pos = eIdx + 9;
     }
 
-    // --- Strategy 1: 解压并提取所有内容流 ---
-    for (const [key, rawObj] of Object.entries(objects)) {
-      if (!rawObj.includes('stream')) continue;
-      // 跳过非内容流对象（可能包含 /Type /FontDescriptor 等）
-      const { data, filter } = parseStreamDictAndData(rawObj);
-      if (!data || data.length < 10) continue;
-
-      let content = null;
-      if (filter === 'FlateDecode' || filter === 'Fl') {
-        content = await inflate(data);
-      } else if (!filter) {
-        // 未压缩的流, 尝试直接用UTF-8解码
-        try {
-          const bytes = new Uint8Array(data.length);
-          for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
-          content = new TextDecoder('utf-8').decode(bytes);
-        } catch(e) {}
-      }
-
-      if (content) {
-        const extracted = extractTextFromContent(content);
-        if (extracted.replace(/\s/g, '').length > 10) {
-          text += extracted + '\n\n';
-        }
-      }
-    }
-
-    // --- Strategy 2: 如果解压后仍不够，尝试对整个文件的原始流做UTF-8解码 ---
-    if (text.replace(/\s/g, '').length < 200) {
-      // 找所有未压缩的stream（raw text）
-      let rawText = '';
-      let spos = 0;
-      const streamBytes = [115, 116, 114, 101, 97, 109]; // "stream"
-      const endstreamBytes = [101, 110, 100, 115, 116, 114, 101, 97, 109]; // "endstream"
-      while (spos < arr.length - 20) {
-        const streamIdx = findBytes(arr, streamBytes, spos);
-        if (streamIdx === -1) break;
-        let start = streamIdx + 6;
-        if (arr[start] === 13) start++;
-        if (arr[start] === 10) start++;
-        const endIdx = findBytes(arr, endstreamBytes, start);
-        if (endIdx === -1) break;
-        const streamData = arr.slice(start, endIdx);
-        try {
-          const decoded = new TextDecoder('utf-8').decode(streamData);
-          const extracted = extractTextFromContent(decoded);
-          if (extracted.replace(/\s/g, '').length > 50) rawText += extracted + '\n\n';
-        } catch(e) {}
-        spos = endIdx + 9;
-      }
-      if (rawText.replace(/\s/g, '').length > text.replace(/\s/g, '').length) text = rawText;
-    }
-
-    // --- Strategy 3: 最后手段——全文UTF-8扫描 ---
+    // --- Strategy 2: 全文latin1扫BT/ET（有些PDF内容流不在stream里，或解压后仍有BT/ET在别处） ---
     if (text.replace(/\s/g, '').length < 200) {
       try {
-        const full = pdfText;
+        const full = new TextDecoder('utf-8').decode(arr);
+        const extracted = extractTextFromContent(full);
+        if (extracted.replace(/\s/g, '').length > text.replace(/\s/g, '').length) text = extracted;
+      } catch(e) {}
+    }
+
+    // --- Strategy 3: 全文逐行扫描中文字符 ---
+    if (text.replace(/\s/g, '').length < 200) {
+      try {
+        const full = new TextDecoder('utf-8').decode(arr);
         const lines = full.split(/\r?\n/).filter(l => {
           const t = l.trim();
-          if (t.length < 10) return false;
-          const chineseRatio = (t.match(/[一-鿿]/g) || []).length / t.length;
-          return chineseRatio > 0.1 || (t.length > 30 && /[a-zA-Z一-鿿]/.test(t));
+          if (t.length < 8) return false;
+          const han = (t.match(/[一-鿿]/g) || []).length;
+          return han > 3 || (han / t.length > 0.08) || (t.length > 40 && /[a-zA-Z一-鿿]/.test(t));
         });
-        text = lines.join('\n');
+        const result = lines.join('\n');
+        if (result.replace(/\s/g, '').length > text.replace(/\s/g, '').length) text = result;
+      } catch(e) {}
+    }
+
+    // --- Strategy 4: 用 latin1 保留字节值，扫 BT/ET ---
+    if (text.replace(/\s/g, '').length < 200) {
+      try {
+        const latin1 = Array.from(arr).map(b => String.fromCharCode(b)).join('');
+        const extracted = extractTextFromContent(latin1);
+        if (extracted.replace(/\s/g, '').length > text.replace(/\s/g, '').length) text = extracted;
       } catch(e) {}
     }
 
     if (text.replace(/\s/g, '').length < 100) {
-      showToast('⚠️ PDF解析不成功\n\n可能原因：\n· PDF为扫描版（图片），不含文字层\n· 使用了不支持的压缩或字体编码\n\n建议：先用在线工具或Calibre转为TXT再导入');
+      showToast('⚠️ PDF解析不成功\n\n扫描了 ' + streamCount + ' 个流，解压了 ' + decompressedCount + ' 个\n\n可能原因：\n· PDF为扫描版（图片），不含文字层\n· 使用了不支持的字体编码\n\n建议：用 Calibre 或 https://www.pdf2go.com/pdf-to-text 转为TXT再导入');
       return;
     }
 
     // 清理文本
     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     text = text.replace(/\n{4,}/g, '\n\n\n');
-    // 修复PDF中常见的连字问题
     text = text.replace(/([一-鿿])\s+([一-鿿])/g, '$1$2');
 
     parseTxt(text, filename);
-    showToast('✅ PDF解析成功！');
+    showToast('✅ PDF解析成功！（扫描' + streamCount + '个流，解压' + decompressedCount + '个）');
   } catch(e) {
-    showToast('❌ PDF解析出错：' + e.message + '\n\n请尝试用Calibre或在线工具将PDF转为TXT后再导入');
+    showToast('❌ PDF解析出错：' + e.message + '\n\n请尝试用在线工具将PDF转为TXT后再导入');
     console.error('PDF parse error:', e);
   }
 }
