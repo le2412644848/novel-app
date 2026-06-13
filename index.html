@@ -4315,14 +4315,8 @@ function exportNovelMd() {
 (function(){
   // 注册 Service Worker（网络优先，离线回退缓存）
   if ('serviceWorker' in navigator) {
-    const CACHE = 'novel-v2';
-    const swCode = `const C='${CACHE}';
-self.addEventListener('install',e=>{self.skipWaiting();});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(res=>{if(res.ok){const r=res.clone();caches.open(C).then(c=>c.put(e.request,r));}return res;}).catch(()=>caches.match(e.request)));});`;
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(()=>{});
-    const swBlob = new Blob([swCode], {type:'application/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
   }
 
   let deferredPrompt = null;
