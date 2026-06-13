@@ -2510,7 +2510,6 @@ function updateShelfTabUI() {
     if (shelfActions) shelfActions.innerHTML = '<button class="btn btn-secondary" onclick="document.getElementById(\'bookFileInput\').click()" style="width:100%;margin-top:10px;">📂 导入书籍（TXT/EPUB/PDF）</button><button class="btn btn-secondary" onclick="showOnlineSearch()" style="width:100%;margin-top:6px;">🔍 在线搜书</button>';
     if (searchBar) searchBar.style.display = importedBooks.length > 3 ? 'flex' : 'none';
   }
-  }
 }
 function renderMyWorks() {
   const el = document.getElementById('novelList');
