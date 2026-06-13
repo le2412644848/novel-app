@@ -1,4 +1,4 @@
-const CACHE = 'novel-v6';
+const CACHE = 'novel-v7';
 self.addEventListener('install', e => { self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(
@@ -18,16 +18,18 @@ self.addEventListener('fetch', e => {
     if (e.request.method === 'GET') {
       e.respondWith(
         fetch(target, {
+          credentials: 'include',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.9',
           }
         }).then(res => {
+          const ct = res.headers.get('Content-Type') || 'text/html; charset=utf-8';
           return new Response(res.body, {
             status: 200,
             headers: {
-              'Content-Type': 'text/plain; charset=utf-8',
+              'Content-Type': ct,
               'Access-Control-Allow-Origin': '*',
               'Cache-Control': 'no-cache',
             }
@@ -47,6 +49,7 @@ self.addEventListener('fetch', e => {
         e.request.json().then(data => {
           return fetch(data.url, {
             method: 'POST',
+            credentials: 'include',
             headers: {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -55,10 +58,11 @@ self.addEventListener('fetch', e => {
             },
             body: data.body
           }).then(res => {
+            const ct = res.headers.get('Content-Type') || 'text/html; charset=utf-8';
             return new Response(res.body, {
               status: 200,
               headers: {
-                'Content-Type': 'text/plain; charset=utf-8',
+                'Content-Type': ct,
                 'Access-Control-Allow-Origin': '*',
                 'Cache-Control': 'no-cache',
               }

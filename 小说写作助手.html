@@ -8303,15 +8303,22 @@ let _customProxy = '';
 let _localProxyOk = false;  // SW代理默认关闭，直连优先（多数书源允许CORS）
 
 async function checkLocalProxy() {
+  // 用可靠 URL 测试 SW 代理机制是否工作（而非测试特定书源）
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 5000);
-    // 用实际书源测试 SW 代理是否能绕过 CORS
-    const r = await fetch('./proxy?url=' + encodeURIComponent('https://www.alicesw.org/search.html?q=test&f=_all'), { signal: c.signal });
+    const r = await fetch('./proxy?url=' + encodeURIComponent('https://httpbin.org/get'), { signal: c.signal });
     clearTimeout(t);
-    _localProxyOk = r.ok && r.status === 200;
+    if (r.ok && r.status === 200) {
+      const text = await r.text();
+      // httpbin/get 成功返回说明 SW 代理机制正常工作
+      _localProxyOk = text.length >= 50;
+      if (_localProxyOk) console.log('✅ SW 代理可用');
+      else console.warn('⚠️ SW 代理响应过短');
+    }
   } catch(e) {
     _localProxyOk = false;
+    console.warn('⚠️ SW 代理不可用:', e.message);
   }
 }
 
@@ -8327,18 +8334,14 @@ function clearSiteCache() {
 
 function getProxyList() {
   const proxies = [];
-  // 1. SW 内置代理（同源中转，绕过浏览器 CORS）
-  if (_localProxyOk) {
-    proxies.push('./proxy?url=');
-  }
+  // 1. SW 内置代理（同源中转，绕过浏览器 CORS）— 始终优先尝试
+  proxies.push('./proxy?url=');
   // 2. Cloudflare Worker 代理（需 VPN 访问 workers.dev）
   if (_customProxy) {
     proxies.push(_customProxy + '?url=');
   }
-  // 3. 公共 CORS 代理兜底（免费服务，可能不稳定）
-  proxies.push('https://api.allorigins.win/raw?url=');
-  proxies.push('https://api.codetabs.com/v1/proxy?quest=');
-  proxies.push('https://corsproxy.io/?');
+  // 3. corsfix 公共代理（需浏览器 Origin 头，限 500 次/天免费）
+  proxies.push('https://proxy.corsfix.com/?');
   return proxies;
 }
 
@@ -8389,7 +8392,10 @@ async function fetchWithCORS(url, _unused, options) {
     try {
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), 15000);
-      const resp = await fetch(proxies[i] + encodeURIComponent(url), { signal: c.signal });
+      // corsfix 需要原始 URL（不编码），其他代理需要编码
+      const isCorsfix = proxies[i].includes('corsfix');
+      const proxyUrl = proxies[i] + (isCorsfix ? url : encodeURIComponent(url));
+      const resp = await fetch(proxyUrl, { signal: c.signal });
       clearTimeout(t);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
