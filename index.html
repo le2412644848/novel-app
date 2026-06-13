@@ -4759,7 +4759,7 @@ async function parseEpub(buffer, filename) {
     }
 
     // --- 第一遍：解析ZIP local file headers，收集所有条目 ---
-    const entries = []; // { name, dataOffset, compMethod, compSize, uncompSize }
+    const entries = [];
     let offset = 0;
     while (offset < arr.length - 30) {
       const sig = view.getUint32(offset, true);
@@ -4768,23 +4768,22 @@ async function parseEpub(buffer, filename) {
       const gpFlag = view.getUint16(offset + 6, true);
       const compMethod = view.getUint16(offset + 8, true);
       let compSize = view.getUint32(offset + 20, true);
+      let uncompSize = view.getUint32(offset + 24, true);
       const nameLen = view.getUint16(offset + 26, true);
       const extraLen = view.getUint16(offset + 28, true);
       const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
       let name = utf8dec.decode(nameBytes);
-
-      // 如果 bit 11 设置，文件名是 UTF-8 编码
-      // (我们的 TextDecoder 默认 utf-8，无需特殊处理)
+      // 清理文件名（有些EPUB有前缀斜杠或反斜杠）
+      name = name.replace(/\\/g, '/').replace(/^\/+/, '');
 
       const dataOffset = offset + 30 + nameLen + extraLen;
 
-      // 处理 data descriptor：如果 bit 3 设置，compSize 可能为 0
+      // 处理 data descriptor：bit 3 设置时header中compSize可能为0
       if ((gpFlag & 0x0008) && compSize === 0) {
-        // 搜索下一个 local file header 或 central directory
         let searchPos = dataOffset;
         while (searchPos < arr.length - 4) {
           const nextSig = view.getUint32(searchPos, true);
-          if (nextSig === 0x04034b50 || nextSig === 0x02014b50) {
+          if (nextSig === 0x04034b50 || nextSig === 0x02014b50 || nextSig === 0x06054b50) {
             compSize = searchPos - dataOffset;
             break;
           }
@@ -4794,14 +4793,14 @@ async function parseEpub(buffer, filename) {
       }
 
       if (compSize > 0 && compSize < 10 * 1024 * 1024 && name.length > 0) {
-        entries.push({ name, dataOffset, compMethod, compSize });
+        entries.push({ name, dataOffset, compMethod, compSize, uncompSize });
       }
 
       offset = dataOffset + compSize;
     }
 
     // --- 第二遍：解压所有deflate条目 ---
-    let deflateCount = 0;
+    let deflateCount = 0, failCount = 0;
     for (const entry of entries) {
       const bytes = new Uint8Array(buffer, entry.dataOffset, entry.compSize);
       if (entry.compMethod === 0) {
@@ -4813,34 +4812,46 @@ async function parseEpub(buffer, filename) {
         if (decompressed) {
           files[entry.name] = utf8dec.decode(decompressed);
           deflateCount++;
+        } else {
+          failCount++;
         }
       }
     }
 
     // --- 找到 container.xml ---
-    const containerFile = Object.keys(files).find(k => k.endsWith('container.xml') || k === 'META-INF/container.xml');
+    const containerFile = Object.keys(files).find(k =>
+      k.endsWith('container.xml') || k === 'META-INF/container.xml' ||
+      k.toLowerCase().endsWith('meta-inf/container.xml')
+    );
     if (!containerFile) {
-      showToast('⚠️ EPUB解析失败：未找到container.xml\n\n找到了' + Object.keys(files).length + '个文件，' + deflateCount + '个已解压');
+      const names = Object.keys(files).slice(0, 10).join(', ');
+      showToast('⚠️ EPUB解析失败：未找到container.xml\n\nZIP条目：' + entries.length + '个，解压：' + deflateCount + '个，失败：' + failCount + '个\n文件示例：' + (names || '(无)'));
       return;
     }
 
     const containerXml = files[containerFile];
-    const rootfileMatch = containerXml.match(/full-path="([^"]+)"/);
+    const rootfileMatch = containerXml.match(/full-path="([^"]+)"/) || containerXml.match(/full-path='([^']+)'/);
     if (!rootfileMatch) {
-      showToast('⚠️ EPUB解析失败：无法找到内容文件路径');
+      showToast('⚠️ EPUB解析失败：无法找到内容文件路径\ncontainer.xml内容：' + containerXml.slice(0, 200));
       return;
     }
 
     const opfPath = rootfileMatch[1];
-    const opfFile = Object.keys(files).find(k => k === opfPath || k.endsWith('/' + opfPath) || k.endsWith(opfPath.split('/').pop()));
+    // 不区分大小写匹配
+    const opfPathLower = opfPath.toLowerCase().replace(/\\/g, '/');
+    const opfFile = Object.keys(files).find(k => {
+      const kl = k.toLowerCase().replace(/\\/g, '/');
+      return kl === opfPathLower || kl.endsWith('/' + opfPathLower) || kl.endsWith(opfPathLower.split('/').pop());
+    });
     if (!opfFile) {
-      showToast('⚠️ EPUB解析失败：无法找到OPF文件（' + opfPath + '）');
+      const names = Object.keys(files).sort().join(', ');
+      showToast('⚠️ EPUB解析失败：无法找到OPF\n路径：' + opfPath + '\n文件列表：' + names.slice(0, 500));
       return;
     }
 
     const opfXml = files[opfFile];
     if (!opfXml) {
-      showToast('⚠️ EPUB解析失败：OPF文件为空');
+      showToast('⚠️ EPUB解析失败：OPF文件为空（' + opfFile + '）');
       return;
     }
 
@@ -4852,9 +4863,9 @@ async function parseEpub(buffer, filename) {
 
     // --- 提取 spine 和 manifest ---
     const spineMatch = opfXml.match(/<spine[^>]*>([\s\S]*?)<\/spine>/);
-    const manifestMatch = opfXml.match(/<manifest>([\s\S]*?)<\/manifest>/);
+    const manifestMatch = opfXml.match(/<manifest[^>]*>([\s\S]*?)<\/manifest>/);
     if (!spineMatch || !manifestMatch) {
-      showToast('⚠️ EPUB解析失败：无法找到目录结构');
+      showToast('⚠️ EPUB解析失败：OPF中找不到spine或manifest\n文件：' + opfFile);
       return;
     }
 
@@ -4862,27 +4873,35 @@ async function parseEpub(buffer, filename) {
     const spine = spineMatch[1];
     const idrefs = [...spine.matchAll(/idref="([^"]+)"/g)].map(m => m[1]);
 
-    // id -> href 映射
+    // id -> href 映射 (支持单双引号)
     const idToHref = {};
     const hrefMatches = manifest.matchAll(/id="([^"]+)"[^>]*href="([^"]+)"/g);
-    for (const m of hrefMatches) {
-      idToHref[m[1]] = m[2];
-    }
+    for (const m of hrefMatches) { idToHref[m[1]] = m[2]; }
+    // 也匹配单引号
+    const hrefMatches2 = manifest.matchAll(/id='([^']+)'[^>]*href='([^']+)'/g);
+    for (const m of hrefMatches2) { idToHref[m[1]] = m[2]; }
 
     // OPF所在目录 (用于解析相对路径)
     const opfDir = opfPath.includes('/') ? opfPath.replace(/\/[^/]+$/, '') + '/' : '';
 
     // --- 提取章节 ---
     const chapters = [];
+    let matchedFiles = 0, missedFiles = 0;
     for (const idref of idrefs) {
       const href = idToHref[idref];
       if (!href) continue;
-      const fullPath = decodeURIComponent(opfDir + href);
-      // 尝试多种路径匹配
-      const htmlFile = Object.keys(files).find(k =>
-        k === fullPath || k.endsWith('/' + fullPath) || k === href || k.endsWith('/' + href) || k.endsWith(href.split('/').pop())
-      );
-      if (!htmlFile) continue;
+      const fullPath = decodeURIComponent((opfDir + href).replace(/\\/g, '/'));
+      const fullPathLower = fullPath.toLowerCase();
+      const hrefLower = href.toLowerCase().replace(/\\/g, '/');
+      const hrefBase = href.split('/').pop().toLowerCase();
+      // 不区分大小写匹配多种路径
+      const htmlFile = Object.keys(files).find(k => {
+        const kl = k.toLowerCase().replace(/\\/g, '/');
+        return kl === fullPathLower || kl.endsWith('/' + fullPathLower) ||
+               kl === hrefLower || kl.endsWith('/' + hrefLower) || kl.endsWith('/' + hrefBase) || kl === hrefBase;
+      });
+      if (!htmlFile) { missedFiles++; continue; }
+      matchedFiles++;
 
       const html = files[htmlFile];
       if (!html) continue;
@@ -4928,7 +4947,8 @@ async function parseEpub(buffer, filename) {
     }
 
     if (chapters.length === 0) {
-      showToast('⚠️ EPUB解析失败：未能提取到章节内容\n\n文件数：' + Object.keys(files).length + '，解压：' + deflateCount);
+      const names = Object.keys(files).sort().join(', ');
+      showToast('⚠️ EPUB解析失败\nspine有' + idrefs.length + '个idref，匹配' + matchedFiles + '个，缺失' + missedFiles + '个\n解压文件：' + Object.keys(files).length + '个（deflate ' + deflateCount + '个）\n文件列表：' + names.slice(0, 400));
       return;
     }
 
