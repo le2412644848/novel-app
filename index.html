@@ -2010,8 +2010,8 @@ body::before {
 <div class="reader-overlay" id="readerOverlay" data-skin="dark">
   <div class="reader-header">
     <button onclick="closeReader()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;opacity:.7;">✕</button>
-    <span id="readerTitle" style="font-weight:600;"></span>
-    <span id="readerProgress" style="font-size:12px;opacity:.7;"></span>
+    <span id="readerTitle" style="font-weight:600;flex:1;text-align:center;"></span>
+    <button onclick="showTocPanel()" style="background:none;border:none;color:inherit;font-size:18px;cursor:pointer;opacity:.7;" title="目录">☰</button>
   </div>
   <div class="reader-content" id="readerContent" onclick="toggleReaderMenu()"></div>
   <div class="reader-footer" id="readerFooter"></div>
@@ -6060,8 +6060,15 @@ async function sendOutlineMessage() {
   btn.textContent = '⏳';
 
   try {
-    // 构建消息列表
-    const systemMsg = { role: 'system', content: '你是一位资深小说编辑。你的任务是与用户协作，为一部' + style + '风格的小说设计' + chapterCount + '章的详细章节大纲。\n\n【要求】\n1. 每章用一句话概括核心剧情（50-100字），格式如"第一章：标题——剧情概要"\n2. 章节之间要有因果连贯性、起承转合\n3. 考虑人物弧光和剧情推进\n4. 严格输出' + chapterCount + '章完整大纲\n5. 如果用户对大纲提出修改意见，请根据反馈重新生成完整大纲\n6. 只输出大纲正文，不要多余解释' };
+    // 构建消息列表——融合用户自定义提示词
+    const outlineTask = '【当前任务：生成' + style + '小说' + chapterCount + '章大纲】请忽略提示词中"写正文"的指令，此刻只需生成大纲。每章格式：第X章：标题——剧情概要（50-100字）。章节因果连贯、起承转合。只输出大纲，不写正文。用户提修改则重新生成完整版大纲。';
+    let systemContent;
+    if (customPrompt) {
+      systemContent = customPrompt.replace(/\{style\}/g, style).replace(/\{model_style\}/g, '').replace(/\{bible\}/g, '').replace(/\{prev_chapters\}/g, '').replace(/\{context\}/g, '').replace(/\{word_target\}/g, '') + '\n\n' + outlineTask;
+    } else {
+      systemContent = '你是一位专业的小说写作助手。' + outlineTask;
+    }
+    const systemMsg = { role: 'system', content: systemContent };
 
     const messages = [systemMsg];
     // 如果是第一条消息，直接使用
@@ -7104,7 +7111,34 @@ function showBookDetail(bookId) {
   overlay.querySelector('.detail-bookmarks').textContent = (book.bookmarks?.length || 0) + ' 个';
   document.getElementById('bookDetailTags').innerHTML = renderTagChips(book);
   overlay.dataset.bookId = bookId;
+  // 填充可点击目录
+  const tocDiv = document.getElementById('bookDetailToc');
+  const tocCount = document.getElementById('bookDetailTocCount');
+  if (tocDiv && book.chapters?.length > 0) {
+    tocCount.textContent = '(' + book.chapters.length + '章)';
+    tocDiv.innerHTML = book.chapters.map((c, i) =>
+      '<div class="toc-item" onclick="event.stopPropagation();openBookChapter(\'' + bookId + '\',' + i + ')">' +
+      (i + 1) + '. ' + esc(c.title || '第' + (i+1) + '章') +
+      ' <span style="font-size:10px;color:var(--text3);">' + countChinese(c.content).toLocaleString() + '字</span>' +
+      '</div>'
+    ).join('');
+    document.getElementById('bookDetailTocSection').style.display = '';
+  } else if (tocDiv) {
+    document.getElementById('bookDetailTocSection').style.display = 'none';
+  }
   overlay.classList.add('active');
+}
+
+function openBookChapter(bookId, chapterIdx) {
+  const idx = importedBooks.findIndex(b => b.id === bookId);
+  if (idx < 0) return;
+  closeBookDetail();
+  readerBook = { type: 'imported', bookIndex: idx, chapterIndex: chapterIdx };
+  const book = importedBooks[idx];
+  book.currentPosition = { chapterIndex: chapterIdx, scrollPercent: 0 };
+  book.readingProgress = Math.round((chapterIdx / Math.max(1, book.chapters.length - 1)) * 100);
+  saveData();
+  openReader();
 }
 
 function closeBookDetail() {
